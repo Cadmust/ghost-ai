@@ -18,7 +18,7 @@ export function ProjectSidebar({ isOpen, onOpenChange }: ProjectSidebarProps) {
       <DrawerContent className="z-50 w-64">
         <DrawerHeader className="flex flex-row justify-between items-center">
           <DrawerTitle>Projects</DrawerTitle>
-          <DrawerClose>
+          <DrawerClose asChild>
             <Button variant="ghost" size="icon" aria-label="Close sidebar">
               <X className="h-4 w-4" />
             </Button>

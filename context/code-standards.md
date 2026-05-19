@@ -18,7 +18,7 @@
 - Default to server components.
 - Add use client only when browser interactivity requires it
 - Keep route handlers focused on a single responsibility.
-- Long-running work belongs in backgroud tasks, not in request handlers.
+- Long-running work belongs in background tasks, not in request handlers.
 
 ## Styling
 

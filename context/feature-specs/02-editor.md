@@ -1,4 +1,4 @@
-We need the base chrome componets that frame every editor screen - the top navbar and the left sidebar shell. These will be reused and extended in every chapter that follows.
+We need the base chrome components that frame every editor screen - the top navbar and the left sidebar shell. These will be reused and extended in every chapter that follows.
 
 ### Editor Navbar
 
@@ -8,8 +8,8 @@ Requirements:
 
 - fixed-height top navbar
 - left, center, and right sections
-- left section contains sidebard toggle button
-- use 'PanelLeftOpen' / 'PanelLeftClosee' icons based on sidebard state
+- left section contains sidebar toggle button
+- use 'PanelLeftOpen' / 'PanelLeftClose' icons based on sidebar state
 - right section stays empty for now
 - dark background with subtle bottom border
 
@@ -19,7 +19,7 @@ Create 'components/editor/project-sidebar.tsx'.
 
 Requirements:
 
-- sidebard should float above the editor canvas
+- sidebar should float above the editor canvas
 - opening it should not push page content
 - slides in from the left
 - accepts 'isOpen' prop
@@ -40,7 +40,7 @@ Support:
 - description
 - footer actions
 
-Don not build actual dialogs yet.
+Do not build actual dialogs yet.
 
 ### Check when done
 
