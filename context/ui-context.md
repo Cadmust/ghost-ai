@@ -15,7 +15,7 @@ All components must use these tokens — no hardcoded hex values.
 | Page background | `--bg-base`        | `#080809` |
 | Surface         | `--bg-surface`     | `#111114` |
 | Elevated surface| `--bg-elevated`    | `#18181c` |
-| Subtle surface  | `--bg-subtle`      | `#lele23` |
+| Subtle surface  | `--bg-subtle`      | `#1e1e23` |
 | Primary text    | `--text-primary`   | `#f0f0f4` |
 | Secondary text  | `--text-secondary` | `#c0c0cc` |
 | Muted text      | `--text-muted`     | `#808090` |
@@ -23,7 +23,6 @@ All components must use these tokens — no hardcoded hex values.
 | Brand accent    | `--accent-primary` | `#00c8d4` |
 | Brand dim       | `--accent-primary-dim` | `rgba(0,200,212,0.12)` |
 | Default border  | `--border-subtle`  | `#3a4a42` |
-| Subtle border   | `--border-subtle`  | `#3a4a42` |
 | Error           | `--state-error`    | `#ff4d4f` |
 | Success         | `--state-success`  | `#34d399` |
 

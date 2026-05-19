@@ -4,7 +4,7 @@ Update this file after every meaningful implementation
 change.
 
 ## Current Phase
-- Next phase
+- UI Design Implementation (Sign-in Page Split Layout)
 
 ## Current Goal
 - Implement next feature from specs
@@ -16,9 +16,28 @@ change.
 - Create editor navbar component (components/editor/editor-navbar.tsx)
 - Create project sidebar component (components/editor/project-sidebar.tsx)
 - Implement dialog pattern using existing color tokens
-
-## In Progress
-- [Next feature to implement from specs]
+- Install @clerk/ui dependency
+- Implement Clerk authentication (provider, auth pages, route protection, user menu)
+  - Wrapped root layout with ClerkProvider using dark theme from '@clerk/ui/themes'
+  - Created proxy.ts at root for route protection (not middleware.ts) as specified
+  - Created sign-in and sign-up pages using Clerk components with catch-all routes ([[...rest]])
+  - Updated root layout to redirect authenticated users to /editor and unauthenticated to /sign-in
+  - Added Clerk's UserButton to editor navbar for profile settings and logout
+  - Used Clerk's default user menu and profile flows
+  - Used existing Clerk env vars (no renaming or inventing new ones)
+- UI Design Implementation - Sign-in Page Split Layout
+  - Created 50/50 split layout with branded left sidebar and form on right
+  - Implemented AuthSidebar component (components/ui/auth-sidebar.tsx) with:
+    - Ghost AI logo with cyan accent (#00c8d4)
+    - Main headline: "Design systems at the speed of thought"
+    - Description text
+    - Three feature cards with icons (AI Architecture Generation, Real-time Collaboration, Instant Spec Generation)
+    - Footer copyright text
+  - Updated auth layout (app/(auth)/layout.tsx) to use split design
+  - Added color tokens to globals.css (--accent-primary, --bg-base, etc.) from UI guidelines
+  - Updated app layout to use Geist Sans and Mono fonts (--font-sans, --font-mono)
+  - Updated Clerk appearance config to use Geist fonts and cyan accent color (#00c8d4)
+  - Styled right panel with dark background for form display
 
 ## Next Up
 - [First unit to build]
@@ -27,7 +46,14 @@ change.
 - [Any unresolved product or technical decisions]
 
 ## Architecture Decisions
-- [Decisions made that affect the system design or data model — include why the decision was made]
+- Use Clerk's 'dark' theme from '@clerk/ui/themes' as base, overriding appearance variables with app's existing CSS variables (no hardcoded colors)
+- Used proxy.ts (not middleware.ts) for route protection as specified
+- Protected all routes by default except public auth paths
+- Implemented client-side redirects in app/page.tsx using useEffect hook
+- Used catch-all routes ([[...rest]]) for Clerk sign-in and sign-up pages to avoid routing conflicts
 
 ## Session Notes
-- [Context needed to resume work in the next session]
+- Authentication implementation complete per spec @context/feature-specs/03-auth.md
+- Fixed Clerk themes import path (@clerk/ui/themes)
+- Updated auth pages to use catch-all route format to prevent middleware protection issues
+- Ready to implement next feature from specs

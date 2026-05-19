@@ -2,16 +2,16 @@
 
 ## Overview
 
-Ghost AI is a real-time collaborative system design workspace. Users describe a system in plain English, an AI agent maps that system on a shared canvas, collaborators refine the architecture, and the app generates a techincal specification from the resulting graph.
+Ghost AI is a real-time collaborative system design workspace. Users describe a system in plain English, an AI agent maps that system on a shared canvas, collaborators refine the architecture, and the app generates a technical specification from the resulting graph.
 
 ## Goals
 
 1. Let authenticated users create and manage architecture projects.
 2. Provide a collaborative real-time canvas for system design.
-3. Let users import prebuilt starter system desings into the canvas.
+3. Let users import prebuilt starter system designs into the canvas.
 4. Let AI generate an initial architecture from a natural language prompt.
 5. Let collaborators refine the generated architecture.
-6. Convert the final graph into a presistent Markdown technical spec.
+6. Convert the final graph into a persistent Markdown technical spec.
 
 ## Core User Flow
 
@@ -20,8 +20,8 @@ Ghost AI is a real-time collaborative system design workspace. Users describe a 
 3. User enters the project workspace.
 4. User optionally imports a starter system design template into the canvas.
 5. User prompts the AI to generate or extend the system design.
-6. AI generates nodes and edges int the shared canvas.
-7. Collaborators edit and fine the design.
+6. AI generates nodes and edges in the shared canvas.
+7. Collaborators edit and refine the design.
 8. User triggers spec generation.
 9. App persists the generated Markdown spec.
 10. User reviews or downloads the spec.
@@ -36,13 +36,13 @@ Ghost AI is a real-time collaborative system design workspace. Users describe a 
 
 ### Collaborative Canvas
 
-- Shared real-time canvas using Livablocks and React Flow.
+- Shared real-time canvas using Liveblocks and React Flow.
 - Live cursors, presence indicators, and node/edge editing.
 - Canvas snapshots persisted to the filesystem.
 
 ### Starter System Designs
 
-- A curated library of prebuild system design templates.
+- A curated library of prebuilt system design templates.
 - Users can import a starter template into the canvas at any point during editing.
 - Templates are static canvas snapshots loaded directly into the active room.
 - Covers common patterns: monolith, microservices, event-driven, serverless, and more.
@@ -56,7 +56,7 @@ Ghost AI is a real-time collaborative system design workspace. Users describe a 
 ### Spec Generation
 
 - The current canvas graph is converted into a Markdown technical specification.
-- Specs are presisted as files and linked to the project in the database.
+- Specs are persisted as files and linked to the project in the database.
 - Users can view and download generated specs.
 
 ## Scope
@@ -67,7 +67,7 @@ Ghost AI is a real-time collaborative system design workspace. Users describe a 
 - Project creation and ownership.
 - Collaborator access by project.
 - Starter system design template library and import.
-- Real-time shared canvas with nodes, eges, and presence.
+- Real-time shared canvas with nodes, edges, and presence.
 - AI-powered architecture generation from prompts.
 - AI-powered Markdown spec generation from the canvas graph.
 - Persistent storage for project metadata and generated artifacts.
@@ -85,7 +85,7 @@ Ghost AI is a real-time collaborative system design workspace. Users describe a 
 
 1. A signed-in user can create and open a project.
 2. Multiple users can collaborate in the same canvas simultaneously.
-3. A use can impot a prebuilt starter desing into the canvas.
-4. AI can generate and architecture into the shared room from a prompt.
+3. A user can import a prebuilt starter design into the canvas.
+4. AI can generate an architecture into the shared room from a prompt.
 5. The graph can be converted into a persisted Markdown spec.
-6. Project meetadata and generated artifacts are stored in the correct layers.
+6. Project metadata and generated artifacts are stored in the correct layers.
