@@ -4,7 +4,7 @@ Update this file after every meaningful implementation
 change.
 
 ## Current Phase
-- UI Design Implementation (Sign-in Page Split Layout)
+- Feature implementation complete: '/editor' home screen and project dialogs/sidebar actions
 
 ## Current Goal
 - Implement next feature from specs
@@ -38,6 +38,32 @@ change.
   - Updated app layout to use Geist Sans and Mono fonts (--font-sans, --font-mono)
   - Updated Clerk appearance config to use Geist fonts and cyan accent color (#00c8d4)
   - Styled right panel with dark background for form display
+- Build '/editor' home screen and project dialogs/sidebar actions (per feature-specs/04-project-dialogs.md)
+  - Created editor home with heading, description, and New Project button
+  - Implemented Create Project dialog with live slug preview
+  - Implemented Rename Project dialog with prefilled input and auto-focus
+  - Implemented Delete Project dialog with destructive confirmation
+  - Added sidebar actions (rename, delete) for owned projects only
+  - Wired dialog state management via custom hook
+  - Used mock project data only (no API calls or persistence)
+- Dark theme implementation in /editor page
+  - Applied Ghost AI theme colors to EditorNavbar component:
+    - Background: var(--bg-base) (#080809)
+    - Border color: var(--border-subtle) (#3a4a42)
+  - Applied Ghost AI theme colors to ProjectSidebar component:
+    - Drawer background: var(--bg-surface) (#111114)
+    - Text color: var(--text-primary) (#f0f0f4)
+    - Tab list background: var(--bg-base) (#080809)
+    - Project items: var(--bg-elevated) (#18181c) with subtle borders
+    - Accent colors: var(--accent-primary) (#00c8d4) for icons and button
+    - New Project button: cyan accent with hover opacity transition
+  - Applied Ghost AI theme colors to editor page:
+    - Canvas background: var(--bg-base) (#080809)
+    - Elevated sections: var(--bg-elevated) (#18181c)
+    - Primary text: var(--text-primary) (#f0f0f4)
+    - Secondary text: var(--text-secondary) (#c0c0cc)
+    - CTA button: var(--accent-primary) (#00c8d4) on dark background
+
 
 ## Next Up
 - [First unit to build]

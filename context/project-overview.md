@@ -16,7 +16,7 @@ Ghost AI is a real-time collaborative system design workspace. Users describe a 
 ## Core User Flow
 
 1. User signs in.
-2. User creates or selects a projects.
+2. User creates or selects a project.
 3. User enters the project workspace.
 4. User optionally imports a starter system design template into the canvas.
 5. User prompts the AI to generate or extend the system design.

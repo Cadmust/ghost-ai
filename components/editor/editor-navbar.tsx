@@ -9,7 +9,13 @@ interface EditorNavbarProps {
 
 export function EditorNavbar({ isSidebarOpen, onSidebarToggle }: EditorNavbarProps) {
   return (
-    <nav className="fixed left-0 right-0 top-0 h-16 flex items-center px-4 bg-background/80 backdrop-blur border-b border-border/50 z-[60]">
+    <nav 
+      style={{
+        backgroundColor: 'var(--bg-base)',
+        borderBottomColor: 'var(--border-subtle)',
+      }}
+      className="fixed left-0 right-0 top-0 h-16 flex items-center px-4 border-b backdrop-blur z-[60]"
+    >
       <div className="flex-1 flex items-center">
         <Button
           variant="ghost"

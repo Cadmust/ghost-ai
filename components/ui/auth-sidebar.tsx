@@ -67,7 +67,7 @@ export default function AuthSidebar() {
 
       {/* Footer */}
       <div className="text-gray-600 text-xs">
-        © 2024 Ghost AI. All rights reserved.
+        © 2026 Ghost AI. All rights reserved.
       </div>
     </div>
   );

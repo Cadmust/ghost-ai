@@ -46,6 +46,7 @@ export async function updateProfile(formData: FormData) {
 
 ```typescript
 const { orgId } = await auth();
+if (!orgId) throw new Error('Unauthorized');
 const getOrgData = unstable_cache(
   () => db.orgData.findMany({ where: { organizationId: orgId } }),
   [`org-${orgId}-data`],

@@ -1,8 +1,8 @@
-Clerk is already installed and connected. Wire it into the Next.js app: provider, auth pages, ridirects, route protection, and user menu.
+Clerk is already installed and connected. Wire it into the Next.js app: provider, auth pages, redirects, route protection, and user menu.
 
 ## Design
 
-User Cleark's 'dark' theme from '@clerk/ui/themes' as the base.
+Use Clerk's 'dark' theme from '@clerk/ui/themes' as the base.
 
 Override Clerk appearance variables using the app's existing CSS variables. Do not hardcode colors.
 
