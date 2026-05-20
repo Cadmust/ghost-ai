@@ -103,13 +103,16 @@ export function useProjectDialogs() {
   // Submit handlers (mock)
   const handleCreateSubmit = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true }));
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setState(prev => ({
-      ...prev,
-      loading: false,
-      isCreateOpen: false,
-    }));
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setState(prev => ({
+        ...prev,
+        isCreateOpen: false,
+      }));
+    } finally {
+      setState(prev => ({ ...prev, loading: false }));
+    }
     // In real app, we would reset form and maybe show success
   }, []);
 

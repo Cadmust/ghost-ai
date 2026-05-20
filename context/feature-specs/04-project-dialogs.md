@@ -6,7 +6,7 @@ Build the '/editor' home screen and add project dialogs/sidebar actions. No API 
 
 Reuse the existing editor layout. Do not modify the navbar or sidebar behavior.
 
-In the center ot the page, add:
+In the center of the page, add:
 
 - heading: 'Create a project or open an existing one'
 - description: 'Start a new architecture workspace, or choose a project from the sidebar.'
