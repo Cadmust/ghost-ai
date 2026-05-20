@@ -7,7 +7,7 @@ change.
 - Feature implementation complete: '/editor' home screen and project dialogs/sidebar actions
 
 ## Current Goal
-- Implement next feature from specs
+- Implement feature specified in 05-prisma.md
 
 ## Completed
 - Install shadcn UI dependencies (clsx, tailwind-merge)
@@ -63,10 +63,16 @@ change.
     - Primary text: var(--text-primary) (#f0f0f4)
     - Secondary text: var(--text-secondary) (#c0c0cc)
     - CTA button: var(--accent-primary) (#00c8d4) on dark background
+- Implement Prisma ORM with Project and ProjectCollaborator models (per feature-specs/05-prisma.md)
+  - Created prisma/models/project.prisma with Project and ProjectCollaborator models
+  - Added proper relations, indexes, and constraints as specified
+  - Created lib/prisma.ts as a cached singleton Prisma client
+  - Implemented branching logic for DATABASE_URL (Accelerate vs direct pg adapter)
+  - Ran migration and generated Prisma client successfully
 
 
 ## Next Up
-- [First unit to build]
+- 06 -
 
 ## Open Questions
 - [Any unresolved product or technical decisions]

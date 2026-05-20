@@ -13,8 +13,8 @@ interface ProjectSidebarProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onCreate: () => void;
-  onRename: (projectId: string) => void;
-  onDelete: (projectId: string) => void;
+  onRename: (projectId: string, projectName: string) => void;
+  onDelete: (projectId: string, projectName: string) => void;
 }
 
 export function ProjectSidebar({
@@ -122,7 +122,7 @@ export function ProjectSidebar({
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => onRename(project.id)}
+                        onClick={() => onRename(project.id, project.name)}
                         style={{ color: 'var(--text-muted)' }}
                         className="p-1 rounded hover:bg-subtle transition-colors"
                         aria-label="Rename project"
@@ -130,7 +130,7 @@ export function ProjectSidebar({
                         <Pencil className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => onDelete(project.id)}
+                        onClick={() => onDelete(project.id, project.name)}
                         className="p-1 rounded hover:bg-subtle transition-colors"
                         aria-label="Delete project"
                       >

@@ -19,6 +19,7 @@ function Tabs({
          "group/tabs flex gap-2 data-[orientation=horizontal]:flex-col",
          className
        )}
+      {...props}
     />
   )
 }
