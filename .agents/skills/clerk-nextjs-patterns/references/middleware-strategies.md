@@ -82,7 +82,6 @@ const isPublicApi = createRouteMatcher(['/api/public(.*)']);
 
 export default clerkMiddleware(async (auth, req) => {
   if (isMachineApi(req)) await auth.protect({ token: 'm2m_token' });
-  if (isPublicApi(req)) await auth.protect({ token: 'any' });
 });
 ```
 

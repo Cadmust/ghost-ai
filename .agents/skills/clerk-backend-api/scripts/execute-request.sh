@@ -17,9 +17,11 @@ _dir="$PWD"
 while true; do
   for _envfile in "$_dir/.env" "$_dir/.env.local"; do
     if [[ -f "$_envfile" ]]; then
-      set -a
-      source "$_envfile"
-      set +a
+      while IFS='=' read -r key value; do
+        [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+        value="${value%$'\r'}"
+        export "$key=$value"
+      done < <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$_envfile")
     fi
   done
   [[ -n "${CLERK_SECRET_KEY:-}" ]] && break
@@ -49,14 +51,23 @@ if [[ "$ADMIN" == false ]]; then
     GET)
       ;; # always allowed
     POST|PUT|PATCH)
-      if [[ "$SCOPES" != *"write"* ]]; then
+      has_scope() {
+        local needle="$1"
+        local normalized="${SCOPES// /}"
+        IFS=',' read -r -a _vals <<< "$normalized"
+        for s in "${_vals[@]}"; do
+          [[ "$s" == "$needle" ]] && return 0
+        done
+        return 1
+      }
+      if ! has_scope "write"; then
         echo "ERROR: $METHOD_UPPER requests require CLERK_BAPI_SCOPES=\"write\" or --admin flag." >&2
         echo "Current CLERK_BAPI_SCOPES: \"$SCOPES\"" >&2
         exit 1
       fi
       ;;
     DELETE)
-      if [[ "$SCOPES" != *"write"* ]] || [[ "$SCOPES" != *"delete"* ]]; then
+      if ! has_scope "write" || ! has_scope "delete"; then
         echo "ERROR: DELETE requests require CLERK_BAPI_SCOPES=\"write,delete\" or --admin flag." >&2
         echo "Current CLERK_BAPI_SCOPES: \"$SCOPES\"" >&2
         exit 1

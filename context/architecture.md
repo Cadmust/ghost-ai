@@ -8,7 +8,7 @@
 | UI        | Tailwind + shadcn/ui        | Component composition and styling |
 | Auth      | Clerk                       | User identity and route protection |
 | Database  | Prisma + PostgreSQL  | Relational metadata: projects, collaborators, specs, task runs |
-| Canvas   | Liveblock + React Flow       | Real-time collaborative canvas, presence, and cursors |
+| Canvas   | Liveblocks + React Flow       | Real-time collaborative canvas, presence, and cursors |
 | Background tasks   |  Trigger.dev       | Durable AI generation workflows |
 | Artifact   | Vercel Blob                | Canvas snapshots and generated Markdown specs |
 
