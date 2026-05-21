@@ -11,6 +11,7 @@ interface CreateProjectDialogProps {
   onProjectNameChange: (name: string) => void;
   onSubmit: () => void;
   loading: boolean;
+  error?: string | null;
 }
 
 export function CreateProjectDialog({
@@ -21,6 +22,7 @@ export function CreateProjectDialog({
   onProjectNameChange,
   onSubmit,
   loading,
+  error,
 }: CreateProjectDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -41,19 +43,34 @@ export function CreateProjectDialog({
           <div className="text-sm text-muted-foreground">
             Slug: <code className="bg-muted px-1 py-0.5 rounded">{slug}</code>
           </div>
+          {error && (
+            <div 
+              style={{ color: 'var(--text-error, #ff4444)' }}
+              className="text-sm p-2 rounded bg-red-900/20"
+            >
+              {error}
+            </div>
+          )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="default"
-            onClick={onSubmit}
-            disabled={loading || !projectName.trim()}
-            className="w-full"
-          >
-            {loading ? "Creating..." : "Create Project"}
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button 
+              variant="text" 
+              onClick={() => onOpenChange(false)}
+              className="flex-1 sm:flex-none"
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={onSubmit}
+              disabled={loading || !projectName.trim()}
+              className="flex-1 sm:flex-none"
+            >
+              {loading ? "Creating..." : "Create Project"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

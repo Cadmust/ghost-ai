@@ -22,6 +22,8 @@ export function EditorNavbar({ isSidebarOpen, onSidebarToggle }: EditorNavbarPro
           size="icon"
           onClick={onSidebarToggle}
           aria-label="Toggle sidebar"
+          style={{ color: 'var(--text-primary)' }}
+          className="hover:bg-muted/30"
         >
           {isSidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
         </Button>
