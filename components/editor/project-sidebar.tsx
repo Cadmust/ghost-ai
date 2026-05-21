@@ -3,10 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Plus, X, Pencil, Trash2 } from "lucide-react";
 import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer";
 
-interface Project {
+export interface Project {
   id: string;
   name: string;
-  owned: boolean;
+  ownerId: string;
 }
 
 interface ProjectSidebarProps {
@@ -15,6 +15,8 @@ interface ProjectSidebarProps {
   onCreate: () => void;
   onRename: (projectId: string, projectName: string) => void;
   onDelete: (projectId: string, projectName: string) => void;
+  ownedProjects?: Project[];
+  sharedProjects?: Project[];
 }
 
 export function ProjectSidebar({
@@ -22,19 +24,10 @@ export function ProjectSidebar({
   onOpenChange,
   onCreate,
   onRename,
-  onDelete
+  onDelete,
+  ownedProjects = [],
+  sharedProjects = [],
 }: ProjectSidebarProps) {
-  // Mock project data
-  const myProjects: Project[] = [
-    { id: '1', name: 'Website Redesign', owned: true },
-    { id: '2', name: 'Mobile App', owned: true },
-    { id: '3', name: 'API Documentation', owned: true }
-  ];
-
-  const sharedProjects: Project[] = [
-    { id: '4', name: 'Team Project', owned: false },
-    { id: '5', name: 'Open Source Initiative', owned: false }
-  ];
 
   return (
     <Drawer
@@ -86,13 +79,13 @@ export function ProjectSidebar({
           </TabsList>
 
           <TabsContent value="my-projects" className="p-4">
-            {myProjects.length === 0 ? (
+            {ownedProjects.length === 0 ? (
               <div style={{ color: 'var(--text-muted)' }} className="text-center py-8">
                 No projects yet
               </div>
             ) : (
               <div className="space-y-2">
-                {myProjects.map((project) => (
+                {ownedProjects.map((project) => (
                   <div 
                     key={project.id} 
                     style={{

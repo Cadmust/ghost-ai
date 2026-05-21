@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface ProjectDialogsState {
   isCreateOpen: boolean;
@@ -7,11 +8,17 @@ interface ProjectDialogsState {
   projectName: string;
   slug: string;
   loading: boolean;
+  error: string | null;
   currentProjectId: string | null;
   currentProjectName: string | null;
 }
 
-export function useProjectDialogs() {
+interface UseProjectDialogsProps {
+  onProjectsRefresh?: () => void;
+}
+
+export function useProjectDialogs({ onProjectsRefresh }: UseProjectDialogsProps = {}) {
+  const router = useRouter();
   const [state, setState] = useState<ProjectDialogsState>({
     isCreateOpen: false,
     isRenameOpen: false,
@@ -19,6 +26,7 @@ export function useProjectDialogs() {
     projectName: '',
     slug: '',
     loading: false,
+    error: null,
     currentProjectId: null,
     currentProjectName: null,
   });
@@ -100,43 +108,143 @@ export function useProjectDialogs() {
     }));
   }, []);
 
-  // Submit handlers (mock)
+  // Create project - call POST /api/projects
   const handleCreateSubmit = useCallback(async () => {
-    setState(prev => ({ ...prev, loading: true }));
+    if (!state.projectName.trim()) {
+      setState(prev => ({ ...prev, error: 'Project name is required' }));
+      return;
+    }
+
+    setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: state.projectName }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create project');
+      }
+
+      const project = await response.json();
+      
+      // Reset dialog and refresh projects
       setState(prev => ({
         ...prev,
         isCreateOpen: false,
+        projectName: '',
+        slug: '',
+        loading: false,
       }));
-    } finally {
-      setState(prev => ({ ...prev, loading: false }));
+
+      // Refresh project list
+      if (onProjectsRefresh) {
+        onProjectsRefresh();
+      }
+
+      // Navigate to workspace
+      router.push(`/editor/workspace/${project.id}`);
+    } catch (error) {
+      console.error('[CREATE_PROJECT]', error);
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: error instanceof Error ? error.message : 'Failed to create project',
+      }));
     }
-    // In real app, we would reset form and maybe show success
-  }, []);
+  }, [state.projectName, router, onProjectsRefresh]);
 
+  // Rename project - call PATCH /api/projects/[id]
   const handleRenameSubmit = useCallback(async () => {
-    setState(prev => ({ ...prev, loading: true }));
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setState(prev => ({
-      ...prev,
-      loading: false,
-      isRenameOpen: false,
-    }));
-  }, []);
+    if (!state.currentProjectId) {
+      setState(prev => ({ ...prev, error: 'No project selected' }));
+      return;
+    }
 
+    if (!state.projectName.trim()) {
+      setState(prev => ({ ...prev, error: 'Project name is required' }));
+      return;
+    }
+
+    setState(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const response = await fetch(`/api/projects/${state.currentProjectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: state.projectName }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to rename project');
+      }
+
+      // Reset dialog and refresh projects
+      setState(prev => ({
+        ...prev,
+        isRenameOpen: false,
+        projectName: '',
+        slug: '',
+        currentProjectId: null,
+        currentProjectName: null,
+        loading: false,
+      }));
+
+      // Refresh project list
+      if (onProjectsRefresh) {
+        onProjectsRefresh();
+      }
+    } catch (error) {
+      console.error('[RENAME_PROJECT]', error);
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: error instanceof Error ? error.message : 'Failed to rename project',
+      }));
+    }
+  }, [state.currentProjectId, state.projectName, onProjectsRefresh]);
+
+  // Delete project - call DELETE /api/projects/[id]
   const handleDeleteConfirm = useCallback(async () => {
-    setState(prev => ({ ...prev, loading: true }));
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setState(prev => ({
-      ...prev,
-      loading: false,
-      isDeleteOpen: false,
-    }));
-  }, []);
+    if (!state.currentProjectId) {
+      setState(prev => ({ ...prev, error: 'No project selected' }));
+      return;
+    }
+
+    setState(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const response = await fetch(`/api/projects/${state.currentProjectId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete project');
+      }
+
+      // Reset dialog state
+      setState(prev => ({
+        ...prev,
+        isDeleteOpen: false,
+        projectName: '',
+        slug: '',
+        currentProjectId: null,
+        currentProjectName: null,
+        loading: false,
+      }));
+
+      // Refresh project list
+      if (onProjectsRefresh) {
+        onProjectsRefresh();
+      }
+    } catch (error) {
+      console.error('[DELETE_PROJECT]', error);
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: error instanceof Error ? error.message : 'Failed to delete project',
+      }));
+    }
+  }, [state.currentProjectId, onProjectsRefresh]);
 
   return {
     // State
@@ -146,6 +254,7 @@ export function useProjectDialogs() {
     projectName: state.projectName,
     slug: state.slug,
     loading: state.loading,
+    error: state.error,
     currentProjectId: state.currentProjectId,
     currentProjectName: state.currentProjectName,
 

@@ -4,10 +4,10 @@ Update this file after every meaningful implementation
 change.
 
 ## Current Phase
-- Feature implementation complete: '/editor' home screen and project dialogs/sidebar actions
+- Feature 07 implementation complete: Editor home wired to real project APIs
 
 ## Current Goal
-- Implement feature specified in 05-prisma.md
+- Ready to implement feature 08 (workspace)
 
 ## Completed
 - Install shadcn UI dependencies (clsx, tailwind-merge)
@@ -69,10 +69,20 @@ change.
   - Created lib/prisma.ts as a cached singleton Prisma client
   - Implemented branching logic for DATABASE_URL (Accelerate vs direct pg adapter)
   - Ran migration and generated Prisma client successfully
+- Implement project APIs (per feature-specs/06-project-apis.md)
+  - Created REST endpoints for:
+    - GET /api/projects - list current user's projects
+    - POST /api/projects - create project
+    - PATCH /api/projects/[projectId] - rename project
+    - DELETE /api/projects/[projectId] - delete project
+  - Use authenticated Clerk user ID as ownerId
+  - When creating: default missing project name to 'Untitled Project'
+  - Security: unauthenticated requests return 401, only project owner can rename/delete, non-owner mutations return 403
 
 
 ## Next Up
-- 06 -
+- 08-workspace.md
+- (Complete feature 07 implementation notes)
 
 ## Open Questions
 - [Any unresolved product or technical decisions]
