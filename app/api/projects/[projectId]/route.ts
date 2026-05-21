@@ -25,7 +25,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { projec
       return new NextResponse('Forbidden', { status: 403 })
     }
 
-    const { name } = await request.json()
+    const body = await request.json().catch(() => null)
+    const name = typeof body?.name === 'string' ? body.name.trim() : ''
+    if (!name) {
+      return NextResponse.json({ error: 'Invalid project name' }, { status: 400 })
+    }
 
     const updatedProject = await prisma.project.update({
       where: { id: projectId },

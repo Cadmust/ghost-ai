@@ -44,7 +44,9 @@ export function CreateProjectDialog({
             Slug: <code className="bg-muted px-1 py-0.5 rounded">{slug}</code>
           </div>
           {error && (
-            <div 
+            <div
+              role="alert"
+              aria-live="assertive" 
               style={{ color: 'var(--text-error, #ff4444)' }}
               className="text-sm p-2 rounded bg-red-900/20"
             >
