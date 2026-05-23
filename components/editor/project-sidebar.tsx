@@ -125,7 +125,7 @@ export function ProjectSidebar({
                           </div>
                         </div>
                       </Link>
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1">
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 invisible group-hover:visible group-focus-within:visible flex items-center gap-1">
                         <button
                           onClick={(e) => { e.preventDefault(); onRename(project.id, project.name); }}
                           style={{ color: 'var(--text-muted)' }}

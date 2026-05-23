@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -60,14 +60,19 @@ export function ShareDialog({ open, onOpenChange, projectId, isOwner }: ShareDia
     }
   }, [projectId]);
 
-  useEffect(() => {
-    if (open) {
-      fetchCollaborators();
-      setInviteEmail('');
-      setCopied(false);
-      setError(null);
+  const handleDialogOpen = useCallback(() => {
+    fetchCollaborators();
+    setInviteEmail('');
+    setCopied(false);
+    setError(null);
+  }, [fetchCollaborators]);
+
+  const handleOpenChange = useCallback((nextOpen: boolean) => {
+    if (nextOpen) {
+      handleDialogOpen();
     }
-  }, [open, fetchCollaborators]);
+    onOpenChange(nextOpen);
+  }, [onOpenChange, handleDialogOpen]);
 
   const handleInvite = async () => {
     if (!inviteEmail.trim() || !inviteEmail.includes('@')) return;
@@ -138,7 +143,7 @@ export function ShareDialog({ open, onOpenChange, projectId, isOwner }: ShareDia
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Share project</DialogTitle>
@@ -187,6 +192,12 @@ export function ShareDialog({ open, onOpenChange, projectId, isOwner }: ShareDia
               </Button>
             </div>
           </div>
+
+          {/* Separator */}
+          <div
+            style={{ backgroundColor: 'var(--border-subtle)' }}
+            className="h-px w-full"
+          />
 
           {/* Invite form — owner only */}
           {isOwner && (
@@ -327,7 +338,7 @@ export function ShareDialog({ open, onOpenChange, projectId, isOwner }: ShareDia
                         disabled={removing === collab.email}
                         aria-label={`Remove ${collab.email}`}
                         style={{ color: 'var(--text-muted)' }}
-                        className="hover:text-state-error shrink-0"
+                        className="hover:opacity-60 shrink-0"
                       >
                         {removing === collab.email ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />

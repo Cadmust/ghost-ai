@@ -1,9 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { WorkspaceNavbar } from '@/components/editor/workspace-navbar';
 import { ProjectSidebar, type Project } from '@/components/editor/project-sidebar';
 import { ShareDialog } from '@/components/editor/share-dialog';
+import { useProjectDialogs } from '@/hooks/use-project-dialogs';
+import { CreateProjectDialog } from '@/components/editor/dialogs/CreateProjectDialog';
+import { RenameProjectDialog } from '@/components/editor/dialogs/RenameProjectDialog';
+import { DeleteProjectDialog } from '@/components/editor/dialogs/DeleteProjectDialog';
 
 interface WorkspaceClientProps {
   projectId: string;
@@ -20,9 +25,42 @@ export function WorkspaceClient({
   ownedProjects,
   sharedProjects,
 }: WorkspaceClientProps) {
+  const router = useRouter();
+  const pendingDeleteRef = useRef<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+
+  const {
+    isCreateOpen,
+    isRenameOpen,
+    isDeleteOpen,
+    projectName: dialogProjectName,
+    slug,
+    loading,
+    error,
+    currentProjectId,
+    currentProjectName,
+    openCreateDialog,
+    closeCreateDialog,
+    openRenameDialog,
+    closeRenameDialog,
+    openDeleteDialog,
+    closeDeleteDialog,
+    updateSlug,
+    handleCreateSubmit,
+    handleRenameSubmit,
+    handleDeleteConfirm,
+  } = useProjectDialogs({
+    onProjectsRefresh: useCallback(async () => {
+      if (pendingDeleteRef.current === projectId) {
+        pendingDeleteRef.current = null;
+        router.push('/editor');
+        return;
+      }
+      router.refresh();
+    }, [projectId, router]),
+  });
 
   return (
     <div
@@ -45,14 +83,11 @@ export function WorkspaceClient({
         <ProjectSidebar
           isOpen={isSidebarOpen}
           onOpenChange={(open) => setIsSidebarOpen(open)}
-          onCreate={() => {
-            // Placeholder — create from workspace will be implemented later
-          }}
-          onRename={(id, name) => {
-            // Placeholder — rename from workspace will be implemented later
-          }}
+          onCreate={openCreateDialog}
+          onRename={(id, name) => openRenameDialog(id, name)}
           onDelete={(id, name) => {
-            // Placeholder — delete from workspace will be implemented later
+            pendingDeleteRef.current = id;
+            openDeleteDialog(id, name);
           }}
           ownedProjects={ownedProjects}
           sharedProjects={sharedProjects}
@@ -128,6 +163,36 @@ export function WorkspaceClient({
         onOpenChange={setIsShareDialogOpen}
         projectId={projectId}
         isOwner={isOwner}
+      />
+
+      {/* Project Dialogs */}
+      <CreateProjectDialog
+        isOpen={isCreateOpen}
+        onOpenChange={closeCreateDialog}
+        projectName={dialogProjectName}
+        slug={slug}
+        onProjectNameChange={updateSlug}
+        onSubmit={handleCreateSubmit}
+        loading={loading}
+        error={error}
+      />
+      <RenameProjectDialog
+        isOpen={isRenameOpen}
+        onOpenChange={closeRenameDialog}
+        currentProjectName={currentProjectName}
+        projectName={dialogProjectName}
+        onProjectNameChange={updateSlug}
+        onSubmit={handleRenameSubmit}
+        loading={loading}
+        error={error}
+      />
+      <DeleteProjectDialog
+        isOpen={isDeleteOpen}
+        onOpenChange={closeDeleteDialog}
+        currentProjectName={currentProjectName}
+        onConfirm={handleDeleteConfirm}
+        loading={loading}
+        error={error}
       />
     </div>
   );
