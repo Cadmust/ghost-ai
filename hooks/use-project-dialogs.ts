@@ -144,7 +144,7 @@ export function useProjectDialogs({ onProjectsRefresh }: UseProjectDialogsProps 
       }
 
       // Navigate to workspace
-      router.push(`/editor/workspace/${project.id}`);
+      router.push(`/editor/${project.id}`);
     } catch (error) {
       console.error('[CREATE_PROJECT]', error);
       setState(prev => ({
