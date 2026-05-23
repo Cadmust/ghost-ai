@@ -44,6 +44,7 @@ next-env.d.ts
 .claude/settings.local.json
 
 # context
-/context/current-issue.md
+/context/current-issues.md
+/context/current-issues-fixed.md
 
 /app/generated/prisma

@@ -31,7 +31,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { name = 'Untitled Project' } = await request.json()
+    const body = await request.json().catch(() => null)
+    const rawName = typeof body?.name === 'string' ? body.name.trim() : ''
+    if (body?.name !== undefined && rawName.length === 0) {
+      return NextResponse.json({ error: 'Invalid project name' }, { status: 400 })
+    }
+    const name = rawName || 'Untitled Project'
 
     const project = await prisma.project.create({
       data: {

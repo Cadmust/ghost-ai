@@ -1,4 +1,4 @@
-import { auth } from '@clerk/nextjs/server';
+import { auth, clerkClient } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
 
 export interface ProjectWithCollaborators {
@@ -26,10 +26,25 @@ export async function getProjectsForUser() {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Get shared projects (where user is a collaborator)
-    // TODO: Fetch user email from Clerk to query collaborators
-    // For now, return empty array
-    const sharedProjects: ProjectWithCollaborators[] = [];
+    // Get user email from Clerk to find shared projects
+    let sharedProjects: ProjectWithCollaborators[] = [];
+    try {
+      const client = await clerkClient();
+      const user = await client.users.getUser(userId);
+      const email = user.emailAddresses[0]?.emailAddress;
+
+      if (email) {
+        const collaborators = await prisma.projectCollaborator.findMany({
+          where: { email },
+          include: { project: true },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        sharedProjects = collaborators.map((c) => c.project);
+      }
+    } catch {
+      // If Clerk API fails, shared projects will be empty
+    }
 
     return {
       owned: ownedProjects,

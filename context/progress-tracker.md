@@ -4,10 +4,10 @@ Update this file after every meaningful implementation
 change.
 
 ## Current Phase
-- Feature 07 implementation complete: Editor home wired to real project APIs
+- Feature 09 (Share Dialog) implementation complete
 
 ## Current Goal
-- Ready to implement feature 08 (workspace)
+- Ready to implement next feature (canvas logic with React Flow)
 
 ## Completed
 - Install shadcn UI dependencies (clsx, tailwind-merge)
@@ -47,22 +47,9 @@ change.
   - Wired dialog state management via custom hook
   - Used mock project data only (no API calls or persistence)
 - Dark theme implementation in /editor page
-  - Applied Ghost AI theme colors to EditorNavbar component:
-    - Background: var(--bg-base) (#080809)
-    - Border color: var(--border-subtle) (#3a4a42)
-  - Applied Ghost AI theme colors to ProjectSidebar component:
-    - Drawer background: var(--bg-surface) (#111114)
-    - Text color: var(--text-primary) (#f0f0f4)
-    - Tab list background: var(--bg-base) (#080809)
-    - Project items: var(--bg-elevated) (#18181c) with subtle borders
-    - Accent colors: var(--accent-primary) (#00c8d4) for icons and button
-    - New Project button: cyan accent with hover opacity transition
-  - Applied Ghost AI theme colors to editor page:
-    - Canvas background: var(--bg-base) (#080809)
-    - Elevated sections: var(--bg-elevated) (#18181c)
-    - Primary text: var(--text-primary) (#f0f0f4)
-    - Secondary text: var(--text-secondary) (#c0c0cc)
-    - CTA button: var(--accent-primary) (#00c8d4) on dark background
+  - Applied Ghost AI theme colors to EditorNavbar component
+  - Applied Ghost AI theme colors to ProjectSidebar component
+  - Applied Ghost AI theme colors to editor page
 - Implement Prisma ORM with Project and ProjectCollaborator models (per feature-specs/05-prisma.md)
   - Created prisma/models/project.prisma with Project and ProjectCollaborator models
   - Added proper relations, indexes, and constraints as specified
@@ -70,19 +57,39 @@ change.
   - Implemented branching logic for DATABASE_URL (Accelerate vs direct pg adapter)
   - Ran migration and generated Prisma client successfully
 - Implement project APIs (per feature-specs/06-project-apis.md)
-  - Created REST endpoints for:
-    - GET /api/projects - list current user's projects
-    - POST /api/projects - create project
-    - PATCH /api/projects/[projectId] - rename project
-    - DELETE /api/projects/[projectId] - delete project
-  - Use authenticated Clerk user ID as ownerId
-  - When creating: default missing project name to 'Untitled Project'
-  - Security: unauthenticated requests return 401, only project owner can rename/delete, non-owner mutations return 403
-
+  - Created REST endpoints for project CRUD
+  - Security: authenticated user checks, ownership enforcement
+- Build `/editor/[roomId]` workspace shell with server-side access checks (per feature-specs/08-editor-workspace-shell.md)
+  - Created lib/project-access.ts with access helpers (getCurrentIdentity, canAccessProject, getProjectAccess)
+  - Created components/editor/access-denied.tsx with centered lock icon, message, and link back to /editor
+  - Created app/editor/[roomId]/page.tsx as server component with:
+    - Unauthenticated redirect to /sign-in
+    - Project access check (owner or collaborator)
+    - AccessDenied for missing or unauthorized projects
+  - Created components/editor/workspace-navbar.tsx with project name display, share button, AI sidebar toggle, and UserButton
+  - Created components/editor/workspace-client.tsx with full-viewport layout:
+    - Top navbar showing project name
+    - Left sidebar (ProjectSidebar) with current room highlighted
+    - Center canvas placeholder with dark surface background and centered message
+    - Right sidebar placeholder for future AI chat (togglable)
+  - Updated ProjectSidebar to support currentRoomId prop for active highlighting
+  - Updated ProjectSidebar project items to use Link for navigation to workspace
+  - Updated useProjectDialogs navigation path from /editor/workspace/ to /editor/
+- Implement Share Dialog (per feature-specs/09-share-dialog.md)
+  - Switched ProjectCollaborator schema from clerkId to email-based tracking
+  - Created migration 20260523000002_switch_to_email_collaborators
+  - Updated lib/project-access.ts: getCurrentIdentity now fetches user email from Clerk, collaborator checks use email
+  - Updated lib/projects.ts: shared projects query uses email from Clerk
+  - Created GET /api/projects/[projectId]/collaborators: lists collaborators enriched with Clerk user data (name, avatar) — falls back to email-only when Clerk lookup fails
+  - Created POST /api/projects/[projectId]/collaborators: invite by email (owner only, server-enforced)
+  - Created DELETE /api/projects/[projectId]/collaborators: remove by email (owner only, server-enforced)
+  - Created components/editor/share-dialog.tsx with:
+    - Owner view: invite by email, collaborator list with avatars/names, remove button per collaborator, copy project link with "Copied!" feedback
+    - Collaborator view: read-only collaborator list with avatars/names, copy project link
+  - Wired ShareDialog in workspace-client.tsx with isOwner prop from server
 
 ## Next Up
-- 08-workspace.md
-- (Complete feature 07 implementation notes)
+- 09-workspace.md: Real canvas logic with React Flow (future feature)
 
 ## Open Questions
 - [Any unresolved product or technical decisions]

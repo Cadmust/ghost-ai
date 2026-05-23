@@ -34,13 +34,7 @@ async function EditorPageContent() {
     );
   } catch (error) {
     console.error('[EDITOR_PAGE]', error);
-    // Fall back to empty projects if fetch fails
-    return (
-      <EditorClient
-        initialOwnedProjects={[]}
-        initialSharedProjects={[]}
-      />
-    );
+    throw error;
   }
 }
 

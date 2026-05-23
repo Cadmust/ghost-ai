@@ -5,15 +5,10 @@ import { Pool } from 'pg'
 const prismaClientSingleton = () => {
   const connectionString = process.env.DATABASE_URL
 
-  if (connectionString?.startsWith('prisma_postgres://')) {
-    // Use Accelerate (Prisma Postgres)
-    return new PrismaClient()
-  } else {
-    // Use direct connection with @prisma/adapter-pg
-    const pool = new Pool({ connectionString })
-    const adapter = new PrismaPg(pool)
-    return new PrismaClient({ adapter })
-  }
+  const pool = new Pool({ connectionString })
+  const adapter = new PrismaPg(pool)
+
+  return new PrismaClient({ adapter })
 }
 
 declare global {

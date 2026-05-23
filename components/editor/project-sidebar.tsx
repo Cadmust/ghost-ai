@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Plus, X, Pencil, Trash2 } from "lucide-react";
@@ -17,6 +18,7 @@ interface ProjectSidebarProps {
   onDelete: (projectId: string, projectName: string) => void;
   ownedProjects?: Project[];
   sharedProjects?: Project[];
+  currentRoomId?: string;
 }
 
 export function ProjectSidebar({
@@ -27,6 +29,7 @@ export function ProjectSidebar({
   onDelete,
   ownedProjects = [],
   sharedProjects = [],
+  currentRoomId,
 }: ProjectSidebarProps) {
 
   return (
@@ -85,56 +88,66 @@ export function ProjectSidebar({
               </div>
             ) : (
               <div className="space-y-2">
-                {ownedProjects.map((project) => (
-                  <div 
-                    key={project.id} 
-                    style={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                    className="flex items-center justify-between p-3 rounded border hover:border-accent-primary/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div 
+                {ownedProjects.map((project) => {
+                  const isActive = project.id === currentRoomId;
+                  return (
+                    <div
+                      key={project.id}
+                      className="group relative"
+                    >
+                      <Link
+                        href={`/editor/${project.id}`}
                         style={{
-                          backgroundColor: 'var(--accent-primary-dim)',
-                          color: 'var(--accent-primary)',
+                          backgroundColor: isActive ? 'var(--accent-primary-dim)' : 'var(--bg-elevated)',
+                          borderColor: isActive ? 'var(--accent-primary)' : 'var(--border-subtle)',
                         }}
-                        className="h-8 w-8 flex items-center justify-center rounded"
+                        className={`flex items-center justify-between p-3 rounded border transition-colors ${
+                          isActive ? '' : 'hover:border-accent-primary/50'
+                        }`}
                       >
-                        {project.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <p style={{ color: 'var(--text-primary)' }} className="text-sm font-medium">
-                          {project.name}
-                        </p>
-                        <p style={{ color: 'var(--text-muted)' }} className="text-xs">
-                          Owned
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => onRename(project.id, project.name)}
-                        style={{ color: 'var(--text-muted)' }}
-                        className="p-1 rounded hover:bg-subtle transition-colors"
-                        aria-label="Rename project"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => onDelete(project.id, project.name)}
-                        className="p-1 rounded hover:bg-subtle transition-colors"
-                        aria-label="Delete project"
-                      >
-                        <Trash2 
-                          className="h-4 w-4"
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            style={{
+                              backgroundColor: isActive ? 'var(--accent-primary)' : 'var(--accent-primary-dim)',
+                              color: isActive ? 'var(--bg-base)' : 'var(--accent-primary)',
+                            }}
+                            className="h-8 w-8 flex items-center justify-center rounded shrink-0"
+                          >
+                            {project.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p style={{ color: 'var(--text-primary)' }} className="text-sm font-medium truncate">
+                              {project.name}
+                            </p>
+                            <p style={{ color: 'var(--text-muted)' }} className="text-xs">
+                              Owned
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1">
+                        <button
+                          onClick={(e) => { e.preventDefault(); onRename(project.id, project.name); }}
                           style={{ color: 'var(--text-muted)' }}
-                        />
-                      </button>
+                          className="p-1 rounded hover:bg-subtle transition-colors"
+                          aria-label="Rename project"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.preventDefault(); onDelete(project.id, project.name); }}
+                          className="p-1 rounded hover:bg-subtle transition-colors"
+                          aria-label="Delete project"
+                        >
+                          <Trash2
+                            className="h-4 w-4"
+                            style={{ color: 'var(--text-muted)' }}
+                          />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </TabsContent>
@@ -146,36 +159,42 @@ export function ProjectSidebar({
               </div>
             ) : (
               <div className="space-y-2">
-                {sharedProjects.map((project) => (
-                  <div 
-                    key={project.id} 
-                    style={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                    className="flex items-center p-3 rounded border hover:border-accent-primary/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div 
-                        style={{
-                          backgroundColor: 'var(--accent-primary-dim)',
-                          color: 'var(--text-muted)',
-                        }}
-                        className="h-8 w-8 flex items-center justify-center rounded"
-                      >
-                        {project.name.charAt(0).toUpperCase()}
+                {sharedProjects.map((project) => {
+                  const isActive = project.id === currentRoomId;
+                  return (
+                    <Link
+                      key={project.id}
+                      href={`/editor/${project.id}`}
+                      style={{
+                        backgroundColor: isActive ? 'var(--accent-primary-dim)' : 'var(--bg-elevated)',
+                        borderColor: isActive ? 'var(--accent-primary)' : 'var(--border-subtle)',
+                      }}
+                      className={`flex items-center p-3 rounded border transition-colors ${
+                        isActive ? '' : 'hover:border-accent-primary/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          style={{
+                            backgroundColor: isActive ? 'var(--accent-primary)' : 'var(--accent-primary-dim)',
+                            color: isActive ? 'var(--bg-base)' : 'var(--text-muted)',
+                          }}
+                          className="h-8 w-8 flex items-center justify-center rounded shrink-0"
+                        >
+                          {project.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p style={{ color: 'var(--text-primary)' }} className="text-sm font-medium truncate">
+                            {project.name}
+                          </p>
+                          <p style={{ color: 'var(--text-muted)' }} className="text-xs">
+                            Shared
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p style={{ color: 'var(--text-primary)' }} className="text-sm font-medium">
-                          {project.name}
-                        </p>
-                        <p style={{ color: 'var(--text-muted)' }} className="text-xs">
-                          Shared
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </TabsContent>
