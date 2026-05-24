@@ -38,13 +38,14 @@ export function ProjectSidebar({
       onOpenChange={onOpenChange}
       direction="left"
     >
-      <DrawerContent 
+      <DrawerContent
         style={{
           backgroundColor: 'var(--bg-surface)',
           color: 'var(--text-primary)',
           borderRightColor: 'var(--border-subtle)',
+          width: '16rem',
         }}
-        className="z-50 w-64 border-r"
+        className="z-50 border-r"
       >
         <DrawerHeader 
           style={{ borderBottomColor: 'var(--border-subtle)' }}

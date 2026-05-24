@@ -9,6 +9,7 @@ import { useProjectDialogs } from '@/hooks/use-project-dialogs';
 import { CreateProjectDialog } from '@/components/editor/dialogs/CreateProjectDialog';
 import { RenameProjectDialog } from '@/components/editor/dialogs/RenameProjectDialog';
 import { DeleteProjectDialog } from '@/components/editor/dialogs/DeleteProjectDialog';
+import { CanvasEditor } from '@/components/editor/canvas-editor';
 
 interface WorkspaceClientProps {
   projectId: string;
@@ -94,59 +95,19 @@ export function WorkspaceClient({
           currentRoomId={projectId}
         />
 
-        {/* Center Canvas */}
+        {/* Center Canvas — fills available space, no card styling */}
         <main className="flex-1 flex flex-col overflow-hidden">
-          <div
-            style={{ backgroundColor: 'var(--bg-surface)' }}
-            className="flex-1 flex items-center justify-center m-3 rounded-2xl"
-          >
-            <div className="flex flex-col items-center gap-4 text-center max-w-md">
-              <div
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-                className="flex items-center justify-center h-16 w-16 rounded-2xl border"
-              >
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ color: 'var(--accent-primary)' }}
-                >
-                  <rect x="3" y="3" width="7" height="7" rx="1" />
-                  <rect x="14" y="3" width="7" height="7" rx="1" />
-                  <rect x="3" y="14" width="7" height="7" rx="1" />
-                  <rect x="14" y="14" width="7" height="7" rx="1" />
-                </svg>
-              </div>
-              <h2
-                style={{ color: 'var(--text-primary)' }}
-                className="text-xl font-semibold"
-              >
-                Canvas
-              </h2>
-              <p style={{ color: 'var(--text-secondary)' }} className="text-sm">
-                The interactive canvas will appear here. Add nodes, connect them,
-                and collaborate with your team in real time.
-              </p>
-            </div>
-          </div>
+          <CanvasEditor roomId={projectId} />
         </main>
 
-        {/* Right AI Sidebar */}
+        {/* Right AI Sidebar — fixed overlay, not inline flow */}
         {isAiSidebarOpen && (
           <aside
             style={{
               backgroundColor: 'var(--bg-surface)',
               borderLeftColor: 'var(--border-subtle)',
             }}
-            className="w-72 shrink-0 border-l overflow-y-auto"
+            className="fixed right-0 top-14 bottom-0 w-72 z-40 border-l overflow-y-auto shadow-lg"
           >
             <div className="flex flex-col items-center justify-center h-full p-6 text-center">
               <p style={{ color: 'var(--text-muted)' }} className="text-sm">
