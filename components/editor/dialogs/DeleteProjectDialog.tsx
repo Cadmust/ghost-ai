@@ -30,7 +30,7 @@ export function DeleteProjectDialog({
         {error && (
           <div 
             role="alert"
-            ria-live="assertive"
+            aria-live="assertive"
             style={{ color: 'var(--text-error, #ff4444)' }}
             className="text-sm p-2 rounded bg-red-900/20"
           >

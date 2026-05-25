@@ -32,7 +32,8 @@ Build a full-viewport workspace layout with:
 - navbar actions: share button and AI sidebar toggle
 - existing `ProjectSidebar` on the left
 - current room highlighted in the sidebar
-- central canvas placeholder with dark background and centered message- right sidebar placeholder for future AI chat
+- central canvas placeholder with dark background and centered message
+- right sidebar placeholder for future AI chat
 
 The canvas area should fill the remaining space.
 

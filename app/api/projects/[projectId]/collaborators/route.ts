@@ -51,43 +51,43 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pro
       orderBy: { createdAt: 'asc' },
     });
 
-    // Enrich with Clerk user data
-    const client = await clerkClient();
-    const enriched = await Promise.all(
-      collaborators.map(async (collab) => {
-        try {
-          // Look up Clerk users by email
-          const users = await client.users.getUserList({
-            emailAddress: [collab.email],
-            limit: 1,
-          });
+    // Batch-enrich with Clerk user data (single API call)
+    const clerkUserMap = new Map<string, { name: string | null; avatarUrl: string | null }>();
+    try {
+      const client = await clerkClient();
+      const emails = collaborators.map((c) => c.email).filter(Boolean);
+      if (emails.length > 0) {
+        const users = await client.users.getUserList({
+          emailAddress: emails,
+          limit: emails.length,
+        });
 
-          if (users.data.length > 0) {
-            const clerkUser = users.data[0];
-            return {
-              id: collab.id,
-              email: collab.email,
+        for (const clerkUser of users.data) {
+          const userEmail = clerkUser.emailAddresses[0]?.emailAddress;
+          if (userEmail) {
+            clerkUserMap.set(userEmail, {
               name: clerkUser.firstName && clerkUser.lastName
                 ? `${clerkUser.firstName} ${clerkUser.lastName}`
                 : clerkUser.firstName || clerkUser.username || null,
               avatarUrl: clerkUser.imageUrl,
-              createdAt: collab.createdAt.toISOString(),
-            };
+            });
           }
-        } catch {
-          // Clerk lookup failed, fall through to email-only
         }
+      }
+    } catch {
+      // Clerk lookup failed — all collaborators fall back to email-only below
+    }
 
-        // Fallback: email only
-        return {
-          id: collab.id,
-          email: collab.email,
-          name: null,
-          avatarUrl: null,
-          createdAt: collab.createdAt.toISOString(),
-        };
-      })
-    );
+    const enriched = collaborators.map((collab) => {
+      const clerkData = clerkUserMap.get(collab.email);
+      return {
+        id: collab.id,
+        email: collab.email,
+        name: clerkData?.name ?? null,
+        avatarUrl: clerkData?.avatarUrl ?? null,
+        createdAt: collab.createdAt.toISOString(),
+      };
+    });
 
     return NextResponse.json({
       collaborators: enriched,

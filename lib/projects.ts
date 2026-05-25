@@ -46,6 +46,24 @@ export async function getProjectsForUser() {
       // If Clerk API fails, shared projects will be empty
     }
 
+    // Also include owned projects that have collaborators (shared-by-me)
+    const ownedWithCollaborators = await prisma.project.findMany({
+      where: {
+        ownerId: userId,
+        collaborators: { some: {} },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Merge and deduplicate by id
+    const seenIds = new Set(sharedProjects.map((p) => p.id));
+    for (const p of ownedWithCollaborators) {
+      if (!seenIds.has(p.id)) {
+        sharedProjects.push(p);
+        seenIds.add(p.id);
+      }
+    }
+
     return {
       owned: ownedProjects,
       shared: sharedProjects,

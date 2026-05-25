@@ -38,13 +38,14 @@ export function ProjectSidebar({
       onOpenChange={onOpenChange}
       direction="left"
     >
-      <DrawerContent 
+      <DrawerContent
         style={{
           backgroundColor: 'var(--bg-surface)',
           color: 'var(--text-primary)',
           borderRightColor: 'var(--border-subtle)',
+          width: '16rem',
         }}
-        className="z-50 w-64 border-r"
+        className="z-50 border-r"
       >
         <DrawerHeader 
           style={{ borderBottomColor: 'var(--border-subtle)' }}
@@ -125,7 +126,7 @@ export function ProjectSidebar({
                           </div>
                         </div>
                       </Link>
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1">
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 invisible group-hover:visible group-focus-within:visible flex items-center gap-1">
                         <button
                           onClick={(e) => { e.preventDefault(); onRename(project.id, project.name); }}
                           style={{ color: 'var(--text-muted)' }}

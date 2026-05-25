@@ -1,9 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { WorkspaceNavbar } from '@/components/editor/workspace-navbar';
 import { ProjectSidebar, type Project } from '@/components/editor/project-sidebar';
 import { ShareDialog } from '@/components/editor/share-dialog';
+import { useProjectDialogs } from '@/hooks/use-project-dialogs';
+import { CreateProjectDialog } from '@/components/editor/dialogs/CreateProjectDialog';
+import { RenameProjectDialog } from '@/components/editor/dialogs/RenameProjectDialog';
+import { DeleteProjectDialog } from '@/components/editor/dialogs/DeleteProjectDialog';
+import { CanvasEditor } from '@/components/editor/canvas-editor';
 
 interface WorkspaceClientProps {
   projectId: string;
@@ -20,9 +26,42 @@ export function WorkspaceClient({
   ownedProjects,
   sharedProjects,
 }: WorkspaceClientProps) {
+  const router = useRouter();
+  const pendingDeleteRef = useRef<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+
+  const {
+    isCreateOpen,
+    isRenameOpen,
+    isDeleteOpen,
+    projectName: dialogProjectName,
+    slug,
+    loading,
+    error,
+    currentProjectId,
+    currentProjectName,
+    openCreateDialog,
+    closeCreateDialog,
+    openRenameDialog,
+    closeRenameDialog,
+    openDeleteDialog,
+    closeDeleteDialog,
+    updateSlug,
+    handleCreateSubmit,
+    handleRenameSubmit,
+    handleDeleteConfirm,
+  } = useProjectDialogs({
+    onProjectsRefresh: useCallback(async () => {
+      if (pendingDeleteRef.current === projectId) {
+        pendingDeleteRef.current = null;
+        router.push('/editor');
+        return;
+      }
+      router.refresh();
+    }, [projectId, router]),
+  });
 
   return (
     <div
@@ -45,73 +84,30 @@ export function WorkspaceClient({
         <ProjectSidebar
           isOpen={isSidebarOpen}
           onOpenChange={(open) => setIsSidebarOpen(open)}
-          onCreate={() => {
-            // Placeholder — create from workspace will be implemented later
-          }}
-          onRename={(id, name) => {
-            // Placeholder — rename from workspace will be implemented later
-          }}
+          onCreate={openCreateDialog}
+          onRename={(id, name) => openRenameDialog(id, name)}
           onDelete={(id, name) => {
-            // Placeholder — delete from workspace will be implemented later
+            pendingDeleteRef.current = id;
+            openDeleteDialog(id, name);
           }}
           ownedProjects={ownedProjects}
           sharedProjects={sharedProjects}
           currentRoomId={projectId}
         />
 
-        {/* Center Canvas */}
+        {/* Center Canvas — fills available space, no card styling */}
         <main className="flex-1 flex flex-col overflow-hidden">
-          <div
-            style={{ backgroundColor: 'var(--bg-surface)' }}
-            className="flex-1 flex items-center justify-center m-3 rounded-2xl"
-          >
-            <div className="flex flex-col items-center gap-4 text-center max-w-md">
-              <div
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-                className="flex items-center justify-center h-16 w-16 rounded-2xl border"
-              >
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ color: 'var(--accent-primary)' }}
-                >
-                  <rect x="3" y="3" width="7" height="7" rx="1" />
-                  <rect x="14" y="3" width="7" height="7" rx="1" />
-                  <rect x="3" y="14" width="7" height="7" rx="1" />
-                  <rect x="14" y="14" width="7" height="7" rx="1" />
-                </svg>
-              </div>
-              <h2
-                style={{ color: 'var(--text-primary)' }}
-                className="text-xl font-semibold"
-              >
-                Canvas
-              </h2>
-              <p style={{ color: 'var(--text-secondary)' }} className="text-sm">
-                The interactive canvas will appear here. Add nodes, connect them,
-                and collaborate with your team in real time.
-              </p>
-            </div>
-          </div>
+          <CanvasEditor roomId={projectId} />
         </main>
 
-        {/* Right AI Sidebar */}
+        {/* Right AI Sidebar — fixed overlay, not inline flow */}
         {isAiSidebarOpen && (
           <aside
             style={{
               backgroundColor: 'var(--bg-surface)',
               borderLeftColor: 'var(--border-subtle)',
             }}
-            className="w-72 shrink-0 border-l overflow-y-auto"
+            className="fixed right-0 top-14 bottom-0 w-72 z-40 border-l overflow-y-auto shadow-lg"
           >
             <div className="flex flex-col items-center justify-center h-full p-6 text-center">
               <p style={{ color: 'var(--text-muted)' }} className="text-sm">
@@ -128,6 +124,36 @@ export function WorkspaceClient({
         onOpenChange={setIsShareDialogOpen}
         projectId={projectId}
         isOwner={isOwner}
+      />
+
+      {/* Project Dialogs */}
+      <CreateProjectDialog
+        isOpen={isCreateOpen}
+        onOpenChange={closeCreateDialog}
+        projectName={dialogProjectName}
+        slug={slug}
+        onProjectNameChange={updateSlug}
+        onSubmit={handleCreateSubmit}
+        loading={loading}
+        error={error}
+      />
+      <RenameProjectDialog
+        isOpen={isRenameOpen}
+        onOpenChange={closeRenameDialog}
+        currentProjectName={currentProjectName}
+        projectName={dialogProjectName}
+        onProjectNameChange={updateSlug}
+        onSubmit={handleRenameSubmit}
+        loading={loading}
+        error={error}
+      />
+      <DeleteProjectDialog
+        isOpen={isDeleteOpen}
+        onOpenChange={closeDeleteDialog}
+        currentProjectName={currentProjectName}
+        onConfirm={handleDeleteConfirm}
+        loading={loading}
+        error={error}
       />
     </div>
   );
