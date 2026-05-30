@@ -38,7 +38,7 @@ type Shape = LiveObject<{
 declare global {
   interface Liveblocks {
     Storage: {
-      shapes: LiveList<string, Shape>;
+      shapes: LiveList<string>;
       people: LiveMap<string, { name: string }>;
     };
   }

@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Share2, PanelRightOpen, PanelRightClose, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
+import { Share2, LayoutTemplateIcon, PanelRightOpen, PanelRightClose, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
 import { UserButton } from '@clerk/nextjs';
 
 interface WorkspaceNavbarProps {
@@ -9,6 +9,7 @@ interface WorkspaceNavbarProps {
   onSidebarToggle: () => void;
   onAiSidebarToggle: () => void;
   onShare: () => void;
+  onTemplates: () => void;
 }
 
 export function WorkspaceNavbar({
@@ -18,6 +19,7 @@ export function WorkspaceNavbar({
   onSidebarToggle,
   onAiSidebarToggle,
   onShare,
+  onTemplates,
 }: WorkspaceNavbarProps) {
   return (
     <nav
@@ -47,6 +49,16 @@ export function WorkspaceNavbar({
       </div>
 
       <div className="flex items-center gap-2 ml-auto">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onTemplates}
+          style={{ color: 'var(--text-secondary)' }}
+          className="hover:bg-muted/30 gap-2"
+        >
+          <LayoutTemplateIcon className="h-4 w-4" />
+          Templates
+        </Button>
         <Button
           variant="ghost"
           size="sm"
