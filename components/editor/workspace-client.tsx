@@ -31,6 +31,7 @@ export function WorkspaceClient({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const {
     isCreateOpen,
@@ -76,6 +77,7 @@ export function WorkspaceClient({
         onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
         onAiSidebarToggle={() => setIsAiSidebarOpen(!isAiSidebarOpen)}
         onShare={() => setIsShareDialogOpen(true)}
+        onTemplates={() => setShowTemplates(true)}
       />
 
       {/* Main workspace area */}
@@ -97,7 +99,7 @@ export function WorkspaceClient({
 
         {/* Center Canvas — fills available space, no card styling */}
         <main className="flex-1 flex flex-col overflow-hidden">
-          <CanvasEditor roomId={projectId} />
+          <CanvasEditor roomId={projectId} showTemplates={showTemplates} onTemplatesOpenChange={setShowTemplates} />
         </main>
 
         {/* Right AI Sidebar — fixed overlay, not inline flow */}

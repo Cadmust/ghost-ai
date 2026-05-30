@@ -91,6 +91,7 @@
     --accent-primary: #00c8d4;
     --accent-primary-dim: rgba(0, 200, 212, 0.12);
     --border-subtle: #3a4a42;
+    --border-bold: #607070;
 }
 
 .dark {
@@ -137,6 +138,7 @@
     --accent-primary: #00c8d4;
     --accent-primary-dim: rgba(0, 200, 212, 0.12);
     --border-subtle: #3a4a42;
+    --border-bold: #607070;
 }
 
 @layer base {
@@ -149,4 +151,36 @@
   html {
     @apply font-sans;
     }
+}
+
+/* Show node handles when hovering the node */
+.react-flow__node:hover .node-handles .react-flow__handle {
+  opacity: 1 !important;
+}
+
+/* Edge styling */
+.react-flow__edge .canvas-edge {
+  stroke: var(--border-subtle);
+  stroke-width: 2;
+  color: var(--border-subtle);
+  transition: stroke 0.15s, stroke-width 0.15s, color 0.15s !important;
+}
+.react-flow__edge:hover .canvas-edge {
+  stroke: var(--accent-primary) !important;
+  stroke-width: 2.5 !important;
+  color: var(--accent-primary) !important;
+}
+.react-flow__edge.selected .canvas-edge {
+  stroke: var(--accent-primary) !important;
+  stroke-width: 2.5 !important;
+  color: var(--accent-primary) !important;
+}
+
+/* Edge hover effects — brighten stroke */
+.react-flow__edge .canvas-edge {
+  transition: stroke 0.15s, stroke-width 0.15s !important;
+}
+.react-flow__edge:hover .canvas-edge {
+  stroke: var(--accent-primary) !important;
+  stroke-width: 2.5 !important;
 }

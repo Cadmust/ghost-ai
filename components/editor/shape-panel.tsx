@@ -4,6 +4,11 @@ import { type DragEvent } from 'react';
 import type { Shape, ShapeDragPayload } from '@/types/canvas';
 import { SHAPE_DEFAULT_SIZES } from '@/types/canvas';
 
+interface ShapePanelProps {
+  onDragStart?: (shape: Shape, width: number, height: number) => void;
+  onDragEnd?: () => void;
+}
+
 const shapes: { shape: Shape; label: string }[] = [
   { shape: 'rectangle', label: 'Rectangle' },
   { shape: 'diamond', label: 'Diamond' },
@@ -13,12 +18,13 @@ const shapes: { shape: Shape; label: string }[] = [
   { shape: 'hexagon', label: 'Hexagon' },
 ];
 
-export function ShapePanel() {
+export function ShapePanel({ onDragStart, onDragEnd }: ShapePanelProps) {
   const handleDragStart = (e: DragEvent<HTMLButtonElement>, shape: Shape) => {
     const size = SHAPE_DEFAULT_SIZES[shape];
     const payload: ShapeDragPayload = { shape, ...size };
     e.dataTransfer.setData('application/ghost-shape', JSON.stringify(payload));
     e.dataTransfer.effectAllowed = 'copy';
+    onDragStart?.(shape, size.width, size.height);
   };
 
   return (
@@ -34,6 +40,7 @@ export function ShapePanel() {
           key={shape}
           draggable
           onDragStart={(e) => handleDragStart(e, shape)}
+          onDragEnd={onDragEnd}
           title={label}
           style={{ color: 'var(--text-secondary)' }}
           className="p-2 rounded-lg hover:bg-white/5 transition-colors cursor-grab active:cursor-grabbing"

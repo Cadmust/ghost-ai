@@ -4,10 +4,10 @@ Update this file after every meaningful implementation
 change.
 
 ## Current Phase
-- Feature 12 (Shape Panel) implementation complete
+- Feature 18 (Starter Templates) implementation complete
 
 ## Current Goal
-- Ready to implement next feature (custom node rendering / AI)
+- Upcoming: AI features or additional canvas interactions
 
 ## Completed
 - Install shadcn UI dependencies (clsx, tailwind-merge)
@@ -122,6 +122,18 @@ change.
   - Added MiniMap, dot-pattern Background, fitView, and loose connection edge defaults
   - Updated auth route to accept the `room` field (sent by the Liveblocks client) in addition to `projectId`
   - Replaced workspace-client.tsx canvas placeholder with CanvasEditor component
+- Implement Node Shape Rendering (per feature-specs/13-node-shape.md)
+  - Created components/editor/shape-renderer.tsx with shared shape rendering:
+    - CSS shapes: rectangle (8px radius), pill/circle (9999px radius)
+    - SVG shapes: diamond, hexagon, cylinder — scaled via viewBox to node dimensions
+    - Border subtly at rest (var(--border-subtle)), brighter when selected (var(--accent-primary))
+  - Updated components/editor/canvas-node.tsx to use ShapeRenderer with selected state
+  - Added drag ghost preview in CanvasFlowInner:
+    - Fixed-position floating ShapeRenderer at cursor with 0.6 opacity
+    - Position updated via requestAnimationFrame for smooth tracking
+    - Shows shape with default size, accent-colored border
+    - Hidden on drop or drag cancel via onDragEnd callback
+  - Updated shape-panel.tsx with onDragStart/onDragEnd callbacks
 - Implement Shape Panel (per feature-specs/12-shape.panel.md)
   - Expanded shape union type in types/canvas.ts to include all 6 shapes (rectangle, diamond, circle, pill, cylinder, hexagon)
   - Added SHAPE_DEFAULT_SIZES map with sensible defaults for each shape
@@ -138,9 +150,18 @@ change.
     - Drop reads shape payload, converts screen coords via screenToFlowPosition, creates node
     - Node IDs generated as `${shape}-${timestamp}-${counter}`
     - New nodes use empty label, default color, and dragged shape value
+- Implement Node Color Toolbar (per feature-specs/15-nodes-color-toolbar.md)
+  - Added textColor field to CanvasNodeData and NodeColorTheme/NODE_COLOR_THEMES palette in types/canvas.ts
+  - Updated ShapeRenderer to accept textColor prop for dynamic label color
+  - Created ColorToolbar component (components/editor/color-toolbar.tsx):
+    - Floating pill above selected node with circular swatches per color pair
+    - Active swatch shows colored border/outline, hover shows subtle textColor glow
+    - stopPropagation on pointer/mouse events to prevent canvas drag/pan
+  - Updated CanvasNodeRenderer to render ColorToolbar when selected and handle color changes via setNodes
+  - New nodes default to --text-primary textColor
 
 ## Next Up
-- 13-custom-nodes.md: Custom node and edge rendering
+- Upcoming: AI features or additional canvas interactions
 
 ## Open Questions
 - [Any unresolved product or technical decisions]
@@ -168,3 +189,73 @@ change.
 - Fixed right sidebar to overlay with fixed positioning (was inline flex pushing the canvas)
 - Fixed drag-and-drop by moving handlers from wrapper div to ReactFlow component directly (ReactFlow pane was intercepting events)
 - Fixed left sidebar Drawer width by using style prop instead of `w-64` className to avoid Vaul CSS specificity conflict
+- Feature 13 node shape rendering complete (2026-05-25):
+  - Created shared ShapeRenderer component handling both CSS shapes (rectangle, pill, circle) and SVG shapes (diamond, hexagon, cylinder)
+  - SVG shapes use viewBox scaling to match node dimensions
+  - Borders transition between subtle (var(--border-subtle)) and selected (var(--accent-primary))
+  - Added drag ghost preview: floating semi-transparent shape that follows cursor via rAF-updated position ref
+  - Ghost preview appears on dragStart, tracks via dragover, disappears on drop or dragEnd
+  - ShapePanel now accepts optional onDragStart/onDragEnd callbacks for ghost state management
+- Implement Node Editing (per feature-specs/14-node-editing.md) — 2026-05-25:
+  - Added NodeResizer from @xyflow/react to CanvasNodeRenderer when selected
+  - Minimum resize constraints: 80px width, 60px height
+  - Subtle resize handles: 8x8 squares with accent border, elevated background, 2px radius
+  - Dashed accent line along resize edges for visual guidance
+  - Double-click node center/label area to enter inline label editing
+  - Transparent textarea overlays the shape during editing (no layout shift)
+  - Label updates as user types, synced to Liveblocks collaborative state
+  - Blur saves the label, Escape cancels and restores original
+  - StopPropagation on textarea mousedown prevents drag/pan during editing
+- Implement Node Color Toolbar (per feature-specs/15-nodes-color-toolbar.md) — 2026-05-27:
+  - Added NodeColorTheme interface and NODE_COLOR_THEMES palette (6 themes) to types/canvas.ts
+  - Added optional textColor field to CanvasNodeData for paired text colors
+  - Updated ShapeRenderer to accept and apply textColor prop on labels
+  - Created ColorToolbar component: floating pill above selected node, circular swatches, active indicator, hover glow, drag prevention
+  - Wired ColorToolbar into CanvasNodeRenderer when selected, color updates via setNodes synced to Liveblocks
+  - New nodes default textColor to var(--text-primary)
+- Implement Canvas Ergonomics (per feature-specs/17-canvas-ergonomics.md) — 2026-05-28:
+  - Created hooks/use-keyboard-shortcuts.ts: keyboard shortcuts for zoom (+, -), undo (Ctrl+Z), redo (Ctrl+Shift+Z, Ctrl+Y), skips editable fields
+  - Created components/editor/canvas-control-bar.tsx: pill-shaped control bar at bottom-left with zoom controls (zoom out, fit view, zoom in) and history controls (undo, redo) separated by a thin divider
+  - Zoom controls wired to React Flow instance (zoomIn, zoomOut, fitView with 200ms animation)
+  - Undo/redo wired to Liveblocks useUndo/useRedo hooks with useCanUndo/useCanRedo for disabled states (dimmed at 30% opacity)
+  - Integrated CanvasControlBar and useKeyboardShortcuts into canvas-editor.tsx
+  - Removed MiniMap from React Flow
+- Implement Starter Templates (per feature-specs/18-starter-template.md) — 2026-05-30:
+  - Created components/editor/starter-templates.ts with CanvasTemplate type and CANVAS_TEMPLATES array (3 templates: Microservices, CI/CD Pipeline, Event-Driven System)
+  - Each template includes id, name, description, nodes, and edges using shared canvas types and color palette
+  - Helper functions (t, e) keep template data readable
+  - Created components/editor/starter-templates-modal.tsx with:
+    - Dialog-based modal showing template cards in a scrollable grid
+    - Template cards display name, description, and a lightweight diagram preview
+    - Preview draws edges as simple lines between node centers and nodes using shape/color data
+    - Uses ShapeRenderer for SVG shapes (diamond, hexagon, cylinder)
+    - Import button per template calls onImport with the template, then closes
+  - Wired modal into canvas-editor.tsx with:
+    - handleImportTemplate generates unique IDs with timestamp prefix, offsets imported nodes
+    - Uses NodeAddChange and EdgeAddChange patterns for Liveblocks sync
+  - Moved Templates trigger from floating canvas button to workspace navbar (before Share button):
+    - Lifted showTemplates state up to WorkspaceClient
+    - Added onTemplates prop to WorkspaceNavbar with LayoutTemplateIcon button
+    - Passed state through CanvasEditor → CanvasFlow → CanvasFlowInner via props
+    - Removed floating bottom-center button, LayoutTemplateIcon and Button imports from canvas-editor.tsx
+  - Redesigned template modal layout to horizontal 3-column grid matching reference screenshot:
+    - Dialog widened from 600px to 900px (`max-w-4xl`)
+    - Title changed to "Import Template", description mentions ⌘Z to undo
+    - Replaced vertical ScrollArea list with `grid grid-cols-3 gap-4`
+    - Each card is a vertical column: preview image on top, name + description in middle, full-width outline "Import" button with Download icon at bottom
+    - Removed unused ScrollArea import, added Download icon from lucide-react
+- Implement Edge Behavior (per feature-specs/16-edge-behavior.md) — 2026-05-27:
+  - Added 4-way connection handles (Top, Right, Bottom, Left) to CanvasNodeRenderer
+  - Handles are small white dots with dark border, hidden by default, fade in on node hover via CSS
+  - Extended CanvasEdge type with CanvasEdgeData supporting edge labels
+  - Created custom CanvasEdgeRenderer component using getSmoothStepPath with borderRadius: 8
+  - Registered edgeTypes={edgeTypes} on ReactFlow with defaultEdgeOptions.type = 'canvasEdge'
+  - Added SVG marker arrowhead using currentColor for dynamic fill matching edge state
+  - Arrowhead polygon marker defined in SVG defs inside the ReactFlow wrapper
+  - CSS edge hover/select states: brightens stroke to var(--accent-primary) and widens to 2.5px
+  - Arrowhead color syncs with edge via currentColor + CSS color property
+  - Added interactionWidth: 16 on BaseEdge for easier click targeting without visible thickness increase
+  - Inline edge label editing: double-click opens input at path midpoint (from getSmoothStepPath labelX/labelY)
+  - Edge label positioned with EdgeLabelRenderer portal using translate(-50%, -50%) centered on midpoint
+  - Input grows with text (no fixed width), Enter saves, Escape cancels, blur saves
+  - Added --border-bold CSS token (#607070) for handle borders

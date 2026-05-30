@@ -1,6 +1,6 @@
 'use client';
 
-import { Component, type ReactNode, useCallback, type DragEvent } from 'react';
+import { Component, type ReactNode, useCallback, useState, useRef, type DragEvent } from 'react';
 import {
   LiveblocksProvider,
   RoomProvider,
@@ -10,7 +10,6 @@ import { useLiveblocksFlow } from '@liveblocks/react-flow';
 import {
   ReactFlow,
   ReactFlowProvider,
-  MiniMap,
   Background,
   BackgroundVariant,
   type DefaultEdgeOptions,
@@ -18,16 +17,26 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { CanvasNodeRenderer } from '@/components/editor/canvas-node';
+import { CanvasEdgeRenderer } from '@/components/editor/canvas-edge';
 import { ShapePanel } from '@/components/editor/shape-panel';
-import type { CanvasNode, CanvasEdge, ShapeDragPayload } from '@/types/canvas';
+import { ShapeRenderer } from '@/components/editor/shape-renderer';
+import { CanvasControlBar } from '@/components/editor/canvas-control-bar';
+import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useUndo, useRedo } from '@liveblocks/react';
+import { StarterTemplatesModal } from '@/components/editor/starter-templates-modal';
+import type { CanvasTemplate } from '@/components/editor/starter-templates';
+import type { CanvasNode, CanvasEdge, ShapeDragPayload, Shape } from '@/types/canvas';
 
 interface CanvasEditorProps {
   roomId: string;
+  showTemplates?: boolean;
+  onTemplatesOpenChange?: (open: boolean) => void;
 }
 
 let nodeCounter = 0;
 
 const defaultEdgeOptions: DefaultEdgeOptions = {
+  type: 'canvasEdge',
   style: { stroke: 'var(--border-subtle)', strokeWidth: 2 },
 };
 
@@ -35,13 +44,17 @@ const nodeTypes = {
   canvasNode: CanvasNodeRenderer,
 };
 
-export function CanvasEditor({ roomId }: CanvasEditorProps) {
+const edgeTypes = {
+  canvasEdge: CanvasEdgeRenderer,
+};
+
+export function CanvasEditor({ roomId, showTemplates = false, onTemplatesOpenChange }: CanvasEditorProps) {
   return (
     <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
       <RoomProvider id={roomId} initialPresence={{ cursor: null, isThinking: false }}>
         <ErrorBoundary fallback={<CanvasErrorFallback />}>
           <ClientSideSuspense fallback={<CanvasLoadingFallback />}>
-            {() => <CanvasFlow />}
+            {() => <CanvasFlow showTemplates={showTemplates} onTemplatesOpenChange={onTemplatesOpenChange} />}
           </ClientSideSuspense>
         </ErrorBoundary>
       </RoomProvider>
@@ -49,27 +62,87 @@ export function CanvasEditor({ roomId }: CanvasEditorProps) {
   );
 }
 
-function CanvasFlow() {
+function CanvasFlow({ showTemplates, onTemplatesOpenChange }: { showTemplates: boolean; onTemplatesOpenChange?: (open: boolean) => void }) {
   return (
     <ReactFlowProvider>
-      <CanvasFlowInner />
+      <CanvasFlowInner showTemplates={showTemplates} onTemplatesOpenChange={onTemplatesOpenChange} />
     </ReactFlowProvider>
   );
 }
 
-function CanvasFlowInner() {
+function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplates: boolean; onTemplatesOpenChange?: (open: boolean) => void }) {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect } =
     useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true });
   const reactFlowInstance = useReactFlow();
 
+  const undo = useUndo();
+  const redo = useRedo();
+
+  useKeyboardShortcuts({ reactFlowInstance, undo, redo });
+
+  const handleImportTemplate = useCallback(
+    (template: CanvasTemplate) => {
+      // Offset imported nodes slightly so they don't overlap the existing canvas
+      const offsetX = 80;
+      const offsetY = 80;
+
+      const nodeAdds = template.nodes.map((n) => ({
+        type: 'add' as const,
+        item: {
+          ...n,
+          id: `${template.id}-${Date.now()}-${n.id}`,
+          position: {
+            x: n.position.x + offsetX,
+            y: n.position.y + offsetY,
+          },
+        },
+      }));
+
+      const edgeAdds = template.edges.map((e) => ({
+        type: 'add' as const,
+        item: {
+          ...e,
+          id: `${template.id}-${Date.now()}-${e.id}`,
+        },
+      }));
+
+      onNodesChange(nodeAdds);
+      onEdgesChange(edgeAdds);
+    },
+    [onNodesChange, onEdgesChange],
+  );
+
+  const [ghostDrag, setGhostDrag] = useState<{
+    shape: Shape;
+    width: number;
+    height: number;
+  } | null>(null);
+  const ghostPos = useRef({ x: 0, y: 0 });
+  const ghostFrame = useRef(0);
+  const ghostElRef = useRef<HTMLDivElement>(null);
+
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'copy';
+
+    ghostPos.current = { x: event.clientX, y: event.clientY };
+
+    if (ghostElRef.current) {
+      cancelAnimationFrame(ghostFrame.current);
+      ghostFrame.current = requestAnimationFrame(() => {
+        if (ghostElRef.current) {
+          ghostElRef.current.style.left = `${ghostPos.current.x}px`;
+          ghostElRef.current.style.top = `${ghostPos.current.y}px`;
+        }
+      });
+    }
   }, []);
 
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault();
+      setGhostDrag(null);
+
       const raw = event.dataTransfer.getData('application/ghost-shape');
       if (!raw) return;
 
@@ -89,6 +162,7 @@ function CanvasFlowInner() {
           label: '',
           color: 'var(--accent-primary-dim)',
           shape: payload.shape,
+          textColor: 'var(--text-primary)',
         },
         width: payload.width,
         height: payload.height,
@@ -98,6 +172,17 @@ function CanvasFlowInner() {
     },
     [reactFlowInstance, onNodesChange],
   );
+
+  const handleShapeDragStart = useCallback(
+    (shape: Shape, width: number, height: number) => {
+      setGhostDrag({ shape, width, height });
+    },
+    [],
+  );
+
+  const handleShapeDragEnd = useCallback(() => {
+    setGhostDrag(null);
+  }, []);
 
   return (
     <div className="w-full h-full relative">
@@ -110,24 +195,73 @@ function CanvasFlowInner() {
         fitView
         defaultEdgeOptions={defaultEdgeOptions}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onDragOver={onDragOver}
         onDrop={onDrop}
         style={{ backgroundColor: 'var(--bg-base)' }}
       >
+        <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+          <defs>
+            <marker
+              id="edge-arrowhead"
+              viewBox="0 0 10 7"
+              refX="9"
+              refY="3.5"
+              markerWidth="10"
+              markerHeight="7"
+              orient="auto-start-reverse"
+            >
+              <polygon
+                points="0 0, 10 3.5, 0 7"
+                fill="currentColor"
+              />
+            </marker>
+          </defs>
+        </svg>
         <Background
           variant={BackgroundVariant.Dots}
           gap={16}
           size={1}
           color="var(--border-subtle)"
         />
-        <MiniMap
-          style={{ backgroundColor: 'var(--bg-elevated)' }}
-          maskColor="rgba(0,0,0,0.6)"
-          nodeColor="var(--accent-primary-dim)"
-          nodeBorderRadius={4}
-        />
-      </ReactFlow>
-      <ShapePanel />
+        </ReactFlow>
+
+      {ghostDrag && (
+        <div
+          ref={ghostElRef}
+          style={{
+            position: 'fixed',
+            left: ghostPos.current.x,
+            top: ghostPos.current.y,
+            transform: 'translate(-50%, -50%)',
+            opacity: 0.6,
+            pointerEvents: 'none',
+            zIndex: 9999,
+          }}
+        >
+          <ShapeRenderer
+            shape={ghostDrag.shape}
+            width={ghostDrag.width}
+            height={ghostDrag.height}
+            color="var(--accent-primary-dim)"
+            borderColor="var(--accent-primary)"
+            borderWidth={2}
+          />
+        </div>
+      )}
+
+      <CanvasControlBar />
+
+      <ShapePanel
+        onDragStart={handleShapeDragStart}
+        onDragEnd={handleShapeDragEnd}
+      />
+
+      <StarterTemplatesModal
+        open={showTemplates}
+        onOpenChange={onTemplatesOpenChange ?? (() => {})}
+        onImport={handleImportTemplate}
+      />
     </div>
   );
 }
