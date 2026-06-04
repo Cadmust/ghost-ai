@@ -17,7 +17,7 @@ Complete the existing AI sidebar placeholder and turn it into a proper floating 
 
 3. Add a tabbed layout with two tabs.
    
-   Use sadcn `Tabs`.
+   Use shadcn `Tabs`.
    - `AI Architect`
    - `Specs`
    - active tab should use the accent styling, like `bg-accent` and `text-accent`
@@ -33,7 +33,7 @@ Complete the existing AI sidebar placeholder and turn it into a proper floating 
      - `Create a chat app architecture`
      - `Build a CI/CD pipeline`
    - style starter chips as soft pills using `bg-subtle` and `text-accent-text`
-   - user messages should be right-aligned with `bg-brand-dim border brand/50 border-2 text-copy-primary`
+   - user messages should be right-aligned with `bg-brand-dim border-brand/50 border-2 text-copy-primary`
    - input area with an auto-resizing textarea, around 72px min height and 160px max height
    - `Enter` submits, `Shift+Enter` adds a newline
 
@@ -50,6 +50,6 @@ Complete the existing AI sidebar placeholder and turn it into a proper floating 
 ## Scope Limits
 
 - don't rebuild the existing sidebar open/close behavior
-- don't add backedn logic
+- don't add backend logic
 - don't add Liveblocks or AI generation logic yet
 - keep this focused on the sidebar UI structure

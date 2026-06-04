@@ -33,7 +33,7 @@ Show active room participants inside the editor canvas view, without changing th
    - show a small colored pointer with a name badge attached
    - match the pointer and badge color to the participant's presence color
 
-5. Define the shared presence type in `liveblocks.config,ts`
+5. Define the shared presence type in `liveblocks.config.ts`
    
    Presence should include:
    - `cursor`: `{ x: number; y: number } | null`

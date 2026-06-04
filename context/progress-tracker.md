@@ -4,7 +4,7 @@ Update this file after every meaningful implementation
 change.
 
 ## Current Phase
-- Feature 18 (Starter Templates) implementation complete
+- Feature 19 (Presence Avatars & Live Cursors) implementation complete
 
 ## Current Goal
 - Upcoming: AI features or additional canvas interactions
@@ -262,3 +262,20 @@ change.
   - Edge label positioned with EdgeLabelRenderer portal using translate(-50%, -50%) centered on midpoint
   - Input grows with text (no fixed width), Enter saves, Escape cancels, blur saves
   - Added --border-bold CSS token (#607070) for handle borders
+- Implement Presence Avatars & Live Cursors (per feature-specs/19-presence-avatars-cursor.md) — 2026-06-04:
+  - Renamed Presence field `isThinking` → `thinking` in liveblocks.config.ts to match spec (Presence: cursor, thinking); updated initialPresence in canvas-editor.tsx accordingly
+  - Created components/editor/presence-avatars.tsx — participant avatar group overlaid in the top-right of the editor canvas (absolute, not in the shared navbar):
+    - Gets current user id from Clerk useUser(); filters useOthers() presence to exclude the entry whose Liveblocks id matches the current Clerk id (Liveblocks UserMeta.id is the Clerk userId, set in the auth route)
+    - Renders filtered collaborators as display-only avatars (profile photo when available, initials fallback), with a subtle ring (ring-2, --bg-base ring color) for readability on the dark canvas
+    - +N overflow chip when more than five collaborators (MAX_VISIBLE = 5)
+    - Current user rendered separately via Clerk UserButton (sized 32px to match collaborator avatars) — never duplicated from presence
+    - Divider (h-6 w-px, --border-subtle) shown only when at least one collaborator exists; just the UserButton otherwise
+  - Created components/editor/live-cursors.tsx — live cursors for other participants only:
+    - useOthersConnectionIds + per-connection useOther selectors (cursor/name/color) for performant renders
+    - Small colored SVG pointer with attached name badge; pointer + badge use the participant's presence color, stroked/text-colored against --bg-base
+    - Cursors broadcast in flow (canvas) coordinates and rendered via flowToScreenPosition so they stay anchored across differing pan/zoom
+  - Wired into canvas-editor.tsx CanvasFlowInner:
+    - useUpdateMyPresence(); onMouseMove broadcasts cursor via screenToFlowPosition({clientX, clientY}); onMouseLeave clears cursor to null
+    - Handlers attached to the ReactFlow component; LiveCursors and PresenceAvatars rendered inside the ReactFlowProvider context
+  - Editor home navbar and shared WorkspaceNavbar left unchanged (presence UI lives only in the canvas/room view); no navbar actions (Save, Import, Share, AI) removed; collaborator avatars are non-interactive; node/edge behavior untouched
+  - Verified: tsc reports no errors in the changed presence/cursor files (two pre-existing unrelated errors remain in lib/projects.ts re: canvasJsonPath); eslint clean on both new files

@@ -177,6 +177,17 @@ export function ShareDialog({ open, onOpenChange, projectId, isOwner }: ShareDia
                 size="sm"
                 onClick={handleCopyLink}
                 className="gap-1.5 shrink-0"
+                style={{
+                  borderColor: 'var(--border-subtle)',
+                  backgroundColor: 'var(--bg-elevated)',
+                  color: copied ? 'var(--state-success)' : 'var(--text-primary)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--bg-subtle)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--bg-elevated)';
+                }}
               >
                 {copied ? (
                   <>

@@ -3,7 +3,7 @@ Canvas JSON should be stored in Vercel Blob, and the saved blob URL should be st
 
 ## What to Install
 
-- `@varcel/blob`
+- `@vercel/blob`
 
 ## Implementation
 
