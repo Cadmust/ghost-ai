@@ -25,6 +25,7 @@ import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useUndo, useRedo } from '@liveblocks/react';
 import { StarterTemplatesModal } from '@/components/editor/starter-templates-modal';
 import type { CanvasTemplate } from '@/components/editor/starter-templates';
+import { SHAPE_DEFAULT_SIZES } from '@/types/canvas';
 import type { CanvasNode, CanvasEdge, ShapeDragPayload, Shape } from '@/types/canvas';
 
 interface CanvasEditorProps {
@@ -86,25 +87,50 @@ function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplat
       const offsetX = 80;
       const offsetY = 80;
 
-      const nodeAdds = template.nodes.map((n) => ({
-        type: 'add' as const,
-        item: {
-          ...n,
-          id: `${template.id}-${Date.now()}-${n.id}`,
-          position: {
-            x: n.position.x + offsetX,
-            y: n.position.y + offsetY,
-          },
-        },
-      }));
+      // Build a stable map from each template node's original id to a fresh
+      // unique id, so the canvas can be imported repeatedly without collisions.
+      const stamp = Date.now();
+      const idMap = new Map<string, string>();
+      template.nodes.forEach((n, i) => {
+        idMap.set(n.id, `${template.id}-${stamp}-${nodeCounter}-n${i}`);
+      });
+      nodeCounter++;
 
-      const edgeAdds = template.edges.map((e) => ({
-        type: 'add' as const,
-        item: {
-          ...e,
-          id: `${template.id}-${Date.now()}-${e.id}`,
-        },
-      }));
+      const nodeAdds = template.nodes.map((n) => {
+        const defaultSize = SHAPE_DEFAULT_SIZES[n.data.shape];
+        return {
+          type: 'add' as const,
+          item: {
+            ...n,
+            id: idMap.get(n.id)!,
+            position: {
+              x: n.position.x + offsetX,
+              y: n.position.y + offsetY,
+            },
+            width: n.width ?? defaultSize.width,
+            height: n.height ?? defaultSize.height,
+          },
+        };
+      });
+
+      // Rewire edges through the id map so source/target reference the freshly
+      // created nodes; edges pointing at unknown ids would be silently dropped.
+      const edgeAdds = template.edges
+        .map((e, i) => {
+          const source = idMap.get(e.source);
+          const target = idMap.get(e.target);
+          if (!source || !target) return null;
+          return {
+            type: 'add' as const,
+            item: {
+              ...e,
+              id: `${template.id}-${stamp}-${nodeCounter}-e${i}`,
+              source,
+              target,
+            },
+          };
+        })
+        .filter((change): change is NonNullable<typeof change> => change !== null);
 
       onNodesChange(nodeAdds);
       onEdgesChange(edgeAdds);
