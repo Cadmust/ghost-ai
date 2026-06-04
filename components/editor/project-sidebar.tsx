@@ -67,16 +67,12 @@ export function ProjectSidebar({
             <TabsTrigger 
               value="my-projects" 
               className="w-full"
-              style={{
-                color: 'var(--text-secondary)',
-              }}
             >
               My Projects
             </TabsTrigger>
             <TabsTrigger 
               value="shared" 
               className="w-full"
-              style={{ color: 'var(--text-secondary)' }}
             >
               Shared
             </TabsTrigger>

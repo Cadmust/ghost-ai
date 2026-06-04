@@ -184,3 +184,22 @@
   stroke: var(--accent-primary) !important;
   stroke-width: 2.5 !important;
 }
+
+/* Ghost AI theme styles for TabsTrigger */
+[data-slot="tabs-trigger"] {
+  color: var(--text-secondary) !important;
+}
+
+[data-slot="tabs-trigger"]:hover {
+  color: var(--text-primary) !important;
+}
+
+[data-slot="tabs-trigger"][data-state="active"] {
+  background-color: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+[data-slot="tabs-trigger"][data-state="active"]::after {
+  background-color: var(--accent-primary) !important;
+}

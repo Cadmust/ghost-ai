@@ -33,7 +33,7 @@ Wire up the AI sidebar so users can submit design prompt, track AI run status in
 
 ### UI Details
 
-- Use existing design tokens from `global.css` (do not introduce new colors)
+- Use existing design tokens from `globals.css` (do not introduce new colors)
 - Follow `ui-context.md` for layout and visual consistency
 
 Chat bubbles

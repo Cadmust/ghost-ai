@@ -16,10 +16,10 @@ This is only for chat messages. Keep it separate from `ai-status-feed`, which ha
 	- render chat messages in order
 	- show sender, timestamp, and message content
 	- keep the styling consistent with the existing sidebar UI
-	- use Tailwind utilities and existing shadcn components whe they fit
+	- use Tailwind utilities and existing shadcn components where they fit
 	
 3. Add message sending.
-	- allow users in the room to send message to `ai-chat`
+	- allow users in the room to send messages to `ai-chat`
 	- use the existing sidebar input and send button
 	- clear the input after a successful send
 	- show a small error state if sending fails

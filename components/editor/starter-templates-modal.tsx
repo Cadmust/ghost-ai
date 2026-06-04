@@ -250,7 +250,14 @@ export function StarterTemplatesModal({
                     className="w-full gap-1.5"
                     style={{
                       borderColor: 'var(--border-subtle)',
+                      backgroundColor: 'var(--bg-elevated)',
                       color: 'var(--text-primary)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-subtle)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-elevated)';
                     }}
                     onClick={() => {
                       onImport(template);

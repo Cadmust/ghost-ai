@@ -1,6 +1,6 @@
 'use client';
 
-import { Component, type ReactNode, useCallback, useState, useRef, type DragEvent } from 'react';
+import { Component, type ReactNode, useCallback, useState, useRef, type DragEvent, type MouseEvent } from 'react';
 import {
   LiveblocksProvider,
   RoomProvider,
@@ -21,8 +21,10 @@ import { CanvasEdgeRenderer } from '@/components/editor/canvas-edge';
 import { ShapePanel } from '@/components/editor/shape-panel';
 import { ShapeRenderer } from '@/components/editor/shape-renderer';
 import { CanvasControlBar } from '@/components/editor/canvas-control-bar';
+import { PresenceAvatars } from '@/components/editor/presence-avatars';
+import { LiveCursors } from '@/components/editor/live-cursors';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
-import { useUndo, useRedo } from '@liveblocks/react';
+import { useUndo, useRedo, useUpdateMyPresence } from '@liveblocks/react';
 import { StarterTemplatesModal } from '@/components/editor/starter-templates-modal';
 import type { CanvasTemplate } from '@/components/editor/starter-templates';
 import { SHAPE_DEFAULT_SIZES } from '@/types/canvas';
@@ -33,8 +35,6 @@ interface CanvasEditorProps {
   showTemplates?: boolean;
   onTemplatesOpenChange?: (open: boolean) => void;
 }
-
-let nodeCounter = 0;
 
 const defaultEdgeOptions: DefaultEdgeOptions = {
   type: 'canvasEdge',
@@ -52,7 +52,7 @@ const edgeTypes = {
 export function CanvasEditor({ roomId, showTemplates = false, onTemplatesOpenChange }: CanvasEditorProps) {
   return (
     <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
-      <RoomProvider id={roomId} initialPresence={{ cursor: null, isThinking: false }}>
+      <RoomProvider id={roomId} initialPresence={{ cursor: null, thinking: false }}>
         <ErrorBoundary fallback={<CanvasErrorFallback />}>
           <ClientSideSuspense fallback={<CanvasLoadingFallback />}>
             {() => <CanvasFlow showTemplates={showTemplates} onTemplatesOpenChange={onTemplatesOpenChange} />}
@@ -79,7 +79,26 @@ function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplat
   const undo = useUndo();
   const redo = useRedo();
 
+  const updateMyPresence = useUpdateMyPresence();
+
   useKeyboardShortcuts({ reactFlowInstance, undo, redo });
+
+  // Broadcast the cursor in flow (canvas) coordinates so it stays anchored to
+  // the same point on the diagram regardless of each viewer's pan and zoom.
+  const onMouseMove = useCallback(
+    (event: MouseEvent) => {
+      const { x, y } = reactFlowInstance.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      updateMyPresence({ cursor: { x, y } });
+    },
+    [reactFlowInstance, updateMyPresence],
+  );
+
+  const onMouseLeave = useCallback(() => {
+    updateMyPresence({ cursor: null });
+  }, [updateMyPresence]);
 
   const handleImportTemplate = useCallback(
     (template: CanvasTemplate) => {
@@ -89,12 +108,13 @@ function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplat
 
       // Build a stable map from each template node's original id to a fresh
       // unique id, so the canvas can be imported repeatedly without collisions.
-      const stamp = Date.now();
+      // Use a globally-unique stamp (not Date.now()/a per-client counter) so
+      // concurrent imports from different clients in the same room can't collide.
+      const importStamp = crypto.randomUUID();
       const idMap = new Map<string, string>();
       template.nodes.forEach((n, i) => {
-        idMap.set(n.id, `${template.id}-${stamp}-${nodeCounter}-n${i}`);
+        idMap.set(n.id, `${template.id}-${importStamp}-n${i}`);
       });
-      nodeCounter++;
 
       const nodeAdds = template.nodes.map((n) => {
         const defaultSize = SHAPE_DEFAULT_SIZES[n.data.shape];
@@ -124,7 +144,7 @@ function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplat
             type: 'add' as const,
             item: {
               ...e,
-              id: `${template.id}-${stamp}-${nodeCounter}-e${i}`,
+              id: `${template.id}-${importStamp}-e${i}`,
               source,
               target,
             },
@@ -178,7 +198,7 @@ function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplat
         y: event.clientY,
       });
 
-      const id = `${payload.shape}-${Date.now()}-${++nodeCounter}`;
+      const id = `${payload.shape}-${crypto.randomUUID()}`;
 
       const newNode: CanvasNode = {
         id,
@@ -224,6 +244,8 @@ function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplat
         edgeTypes={edgeTypes}
         onDragOver={onDragOver}
         onDrop={onDrop}
+        onMouseMove={onMouseMove}
+        onMouseLeave={onMouseLeave}
         style={{ backgroundColor: 'var(--bg-base)' }}
       >
         <svg style={{ position: 'absolute', width: 0, height: 0 }}>
@@ -275,6 +297,10 @@ function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplat
           />
         </div>
       )}
+
+      <LiveCursors />
+
+      <PresenceAvatars />
 
       <CanvasControlBar />
 

@@ -1,5 +1,5 @@
 Set up the backend flow for design generation using Trigger.dev.
-This unit handles triggering background jobs, tracking runs, and issusing tokens. No AI logic yet.
+This unit handles triggering background jobs, tracking runs, and issuing tokens. No AI logic yet.
 
 ## Implementation
 
@@ -20,7 +20,7 @@ This unit handles triggering background jobs, tracking runs, and issusing tokens
    - `runId` (unique)
    - `projectId`
    - `userId`
-   - `createAt`
+   - `createdAt`
   
    Add:
    - an index on `runId`
