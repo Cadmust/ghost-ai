@@ -244,6 +244,9 @@ change.
     - Replaced vertical ScrollArea list with `grid grid-cols-3 gap-4`
     - Each card is a vertical column: preview image on top, name + description in middle, full-width outline "Import" button with Download icon at bottom
     - Removed unused ScrollArea import, added Download icon from lucide-react
+  - Verified Feature 18 against spec (2026-06-04): all spec points met (CanvasTemplate type, CANVAS_TEMPLATES with 3 templates, dialog modal with scrollable grid, per-card import, lightweight preview with computed bounds/edges/shapes); modal wired into canvas-editor.tsx and workspace navbar
+  - Removed dead `offsetX` variable (unused, never-read scaffolding with stale "Recalculate properly" comment) from TemplatePreview in starter-templates-modal.tsx
+  - Fixed template import producing no canvas objects (2026-06-04): handleImportTemplate now builds an oldId→newId map for nodes and rewires each edge's source/target through it (edges previously kept original node ids, so they referenced non-existent nodes and were dropped); imported nodes now get width/height from SHAPE_DEFAULT_SIZES to match drag-drop nodes; IDs use a stamp + nodeCounter + index to guarantee uniqueness across repeated imports within the same millisecond; edges with unresolved endpoints are filtered out
 - Implement Edge Behavior (per feature-specs/16-edge-behavior.md) — 2026-05-27:
   - Added 4-way connection handles (Top, Right, Bottom, Left) to CanvasNodeRenderer
   - Handles are small white dots with dark border, hidden by default, fade in on node hover via CSS

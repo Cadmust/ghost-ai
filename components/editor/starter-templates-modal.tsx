@@ -61,9 +61,6 @@ function TemplatePreview({ template }: { template: CanvasTemplate }) {
 
   const bounds = useMemo(() => computePreviewBounds(nodes), [nodes]);
 
-  const offsetX = (PREVIEW_WIDTH - (bounds.minX * 2 + (nodes.reduce((mx, n) => Math.max(mx, n.position.x + (n.width ?? 120)), 0) - nodes.reduce((mn, n) => Math.min(mn, n.position.x), 0))) * bounds.scale) / 2 - bounds.minX * bounds.scale;
-
-  // Recalculate properly
   const { minX, minY, scale } = bounds;
   const transform = `translate(${PREVIEW_PADDING}px, ${PREVIEW_PADDING}px) scale(${scale}) translate(${-minX}px, ${-minY}px)`;
 
