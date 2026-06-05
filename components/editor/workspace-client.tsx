@@ -126,6 +126,7 @@ export function WorkspaceClient({
         <AiSidebar
           isOpen={isAiSidebarOpen}
           onClose={() => setIsAiSidebarOpen(false)}
+          projectId={projectId}
         />
       </div>
 

@@ -1,0 +1,12 @@
+// TaskRun model — tracks Trigger.dev background runs and verifies ownership
+// before issuing run-scoped tokens. Metadata only; no generated artifacts.
+model TaskRun {
+  id        String   @id @default(uuid())
+  runId     String   @unique // Trigger.dev run ID
+  projectId String
+  userId    String   // Maps to Clerk user ID
+  createdAt DateTime @default(now())
+
+  @@index([runId])
+  @@index([userId, projectId])
+}

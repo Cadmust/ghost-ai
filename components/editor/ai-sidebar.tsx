@@ -11,17 +11,20 @@ import {
   Send,
   FileText,
   Download,
+  Loader2,
 } from 'lucide-react';
 
 interface AiSidebarProps {
   /** Open/close state is owned by the parent. */
   isOpen: boolean;
   onClose: () => void;
+  /** Project (and Liveblocks room) the design agent should generate into. */
+  projectId: string;
 }
 
 interface ChatMessage {
   id: string;
-  role: 'user';
+  role: 'user' | 'system';
   content: string;
 }
 
@@ -34,9 +37,10 @@ const STARTER_PROMPTS = [
 const TEXTAREA_MIN_HEIGHT = 72;
 const TEXTAREA_MAX_HEIGHT = 160;
 
-export function AiSidebar({ isOpen, onClose }: AiSidebarProps) {
+export function AiSidebar({ isOpen, onClose, projectId }: AiSidebarProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const autoResize = (el: HTMLTextAreaElement) => {
@@ -48,9 +52,10 @@ export function AiSidebar({ isOpen, onClose }: AiSidebarProps) {
     el.style.height = `${next}px`;
   };
 
-  const submitMessage = () => {
+  const submitMessage = async () => {
     const trimmed = input.trim();
-    if (!trimmed) return;
+    if (!trimmed || isSending) return;
+
     setMessages((prev) => [
       ...prev,
       { id: `${Date.now()}`, role: 'user', content: trimmed },
@@ -59,12 +64,46 @@ export function AiSidebar({ isOpen, onClose }: AiSidebarProps) {
     if (textareaRef.current) {
       textareaRef.current.style.height = `${TEXTAREA_MIN_HEIGHT}px`;
     }
+
+    // Kick off the background design agent. Progress (presence + status feed)
+    // surfaces on the shared canvas for every participant, so the sidebar only
+    // needs to confirm the request was accepted or report a failure.
+    setIsSending(true);
+    try {
+      const response = await fetch('/api/ai/design', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: trimmed, projectId, roomId: projectId }),
+      });
+      if (!response.ok) {
+        throw new Error(`Request failed (${response.status})`);
+      }
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-ack`,
+          role: 'system',
+          content: 'Ghost AI is working on the canvas — watch it build your design.',
+        },
+      ]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-err`,
+          role: 'system',
+          content: "Couldn't start the design agent. Please try again.",
+        },
+      ]);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      submitMessage();
+      void submitMessage();
     }
   };
 
@@ -190,20 +229,34 @@ export function AiSidebar({ isOpen, onClose }: AiSidebarProps) {
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {messages.map((message) => (
-                  <div key={message.id} className="flex justify-end">
-                    <div
-                      style={{
-                        backgroundColor: 'var(--accent-primary-dim)',
-                        borderColor: 'color-mix(in srgb, var(--accent-primary) 50%, transparent)',
-                        color: 'var(--text-primary)',
-                      }}
-                      className="max-w-[80%] rounded-2xl border-2 px-3 py-2 text-sm whitespace-pre-wrap break-words"
-                    >
-                      {message.content}
+                {messages.map((message) =>
+                  message.role === 'user' ? (
+                    <div key={message.id} className="flex justify-end">
+                      <div
+                        style={{
+                          backgroundColor: 'var(--accent-primary-dim)',
+                          borderColor: 'color-mix(in srgb, var(--accent-primary) 50%, transparent)',
+                          color: 'var(--text-primary)',
+                        }}
+                        className="max-w-[80%] rounded-2xl border-2 px-3 py-2 text-sm whitespace-pre-wrap break-words"
+                      >
+                        {message.content}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ) : (
+                    <div key={message.id} className="flex justify-start">
+                      <div
+                        style={{
+                          backgroundColor: 'var(--bg-subtle)',
+                          color: 'var(--text-secondary)',
+                        }}
+                        className="max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words"
+                      >
+                        {message.content}
+                      </div>
+                    </div>
+                  ),
+                )}
               </div>
             )}
           </div>
@@ -236,8 +289,8 @@ export function AiSidebar({ isOpen, onClose }: AiSidebarProps) {
               <Button
                 type="button"
                 size="icon"
-                onClick={submitMessage}
-                disabled={!input.trim()}
+                onClick={() => void submitMessage()}
+                disabled={!input.trim() || isSending}
                 aria-label="Send message"
                 style={{
                   backgroundColor: 'var(--accent-primary)',
@@ -245,7 +298,11 @@ export function AiSidebar({ isOpen, onClose }: AiSidebarProps) {
                 }}
                 className="absolute bottom-2 right-2 h-8 w-8 disabled:opacity-40"
               >
-                <Send className="h-4 w-4" />
+                {isSending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </div>

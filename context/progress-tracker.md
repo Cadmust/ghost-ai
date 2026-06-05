@@ -4,10 +4,10 @@ Update this file after every meaningful implementation
 change.
 
 ## Current Phase
-- Feature 21 (Canvas Autosave & Loading) implementation complete
+- Feature 23 (Design Agent Logic — AI prompt → canvas) implementation complete
 
 ## Current Goal
-- Upcoming: AI generation logic / Liveblocks AI wiring for the sidebar
+- Upcoming: spec generation (canvas graph → Markdown) and/or further AI canvas interactions
 
 ## Completed
 - Install shadcn UI dependencies (clsx, tailwind-merge)
@@ -209,8 +209,41 @@ change.
   - #8 Template import verified intact — modal Import → handleImportTemplate builds id-remapped nodes/edges (relative template layout preserved) and syncs via add changes; no change needed beyond confirming it still works after the above edits.
   - Verification: `npx tsc --noEmit` clean; `npm run build` passes. eslint on changed files shows only the 3 pre-existing ghostPos ref-in-render errors in untouched drag-ghost code; no new lint errors introduced.
 
+- Add Trigger.dev background-task setup — 2026-06-05:
+  - SDK already present (@trigger.dev/sdk + @trigger.dev/build @ 4.4.6); credentials (TRIGGER_SECRET_KEY, TRIGGER_PROJECT_REF) already in .env.local; .gitignore already ignores .trigger; tsconfig already includes trigger.config.ts
+  - Fixed trigger.config.ts import: `@trigger.dev/sdk/v3` → `@trigger.dev/sdk` (the v4 root entrypoint; the /v3 path is the legacy compat export). Verified defineConfig/task/tasks.trigger all resolve from the root export
+  - Created trigger/example.ts — minimal task to verify the setup end-to-end (safe to delete)
+  - Created trigger/design-agent.ts — typed skeleton (id "design-agent", DesignAgentPayload: projectId/roomId/prompt) at the path feature-spec 23 expects; returns { status: "not-implemented" } until the agent feature is built
+  - Removed trigger/.gitkeep (dir now has real tasks)
+  - Added package.json scripts: trigger:dev / trigger:deploy (pin trigger.dev@4.4.6 CLI to match the SDK)
+  - Verified: `npx tsc --noEmit` clean
+
+- Implement Design Agent API (per feature-specs/22-design-agent-api.md) — 2026-06-05:
+  - Added TaskRun Prisma model (prisma/models/task-run.prisma): runId (unique), projectId, userId, createdAt; @@index([runId]) and compound @@index([userId, projectId]). DB already had a matching TaskRun table from a prior applied-but-unsynced migration (drift detected by `migrate dev`); did NOT reset the DB (would drop data) — the table already matches the model, so ran `npx prisma generate` to refresh the client (delegate is `prisma.taskRun`). Note: prisma migrate history shows applied-but-missing migrations (20260531100038_rename_canvas_json_path_to_blob_url, 20260531194222_add_task_run_model) — DB is ahead of local migration files
+  - Created app/api/ai/design/route.ts (POST): validates { prompt, roomId, projectId } at the boundary, resolves identity via getCurrentIdentity + canAccessProject (owner or collaborator), triggers the background task via `tasks.trigger<typeof designAgentTask>('design-agent', …)`, records a TaskRun (runId from handle.id, userId from verified identity), returns { runId }. No AI logic
+  - Created app/api/ai/design/token/route.ts (POST): validates { runId }, looks up the TaskRun, verifies taskRun.userId === caller identity (403 otherwise, 404 if no run), mints a run-scoped Trigger.dev token via auth.createPublicToken({ scopes: { read: { runs: [runId] } }, expirationTime: '1h' }), returns { token }
+  - Reused the existing trigger/design-agent.ts task (id "design-agent", DesignAgentPayload projectId/roomId/prompt) instead of creating a new pattern; updated it to echo the full input (now logs prompt too) and return { status: "received", roomId, prompt } in place of "not-implemented"
+  - Scope respected: no node/edge generation, no AI provider calls, no canvas updates — backend task wiring only
+  - Verified: SDK exports (tasks.trigger, auth.createPublicToken) resolve from @trigger.dev/sdk; `npx tsc --noEmit` clean; `npm run build` passes with /api/ai/design and /api/ai/design/token registered
+
+- Implement Design Agent Logic (per feature-specs/23-design-agent-logic.md) — 2026-06-05:
+  - Implemented the full design-agent task body in trigger/design-agent.ts (prompt → real-time collaborative canvas updates + AI presence + status feed):
+    - AI interpretation: OpenRouter (`@openrouter/sdk`, `new OpenRouter({ apiKey })`) `chat.send` with the free Nemotron nano model (`nvidia/nemotron-3-nano-30b-a3b:free`, the id named in the spec), `responseFormat: { type: 'json_object' }`, a system prompt that pins the allowed shapes/palette/layout rules, and a user prompt that includes the CURRENT canvas (so the agent can extend an existing design). Model output parsed defensively (strips ``` fences / leading prose, falls back to the first {...} block) into an `AiPlan { summary, actions[] }`
+    - Action contract: addNode / moveNode / resizeNode / updateNodeData / deleteNode / addEdge / deleteEdge — covering every action the spec lists
+    - Canvas mutation goes through the EXISTING collaborative flow utility: `mutateFlow` from `@liveblocks/react-flow/node` (the official server-side counterpart to the client `useLiveblocksFlow`; mutates the same Liveblocks Storage `flow` LiveObject → nodes/edges LiveMaps, so every connected client sees the change in real time). All actions applied inside ONE mutateFlow so a generated design lands as a single collaborative update. A first (separate) mutateFlow reads current nodes/edges for the model BEFORE the slow LLM call, so Storage isn't held open during generation
+    - Server-side sanitization (never trusts model output): shape coerced to an allowed `Shape` (default rectangle), color resolved by name against NODE_COLOR_THEMES (default Slate) and applied as paired bg/textColor matching the color toolbar, missing coordinates snapped onto a layout grid (240px+ horizontal / 160px+ vertical spacing) so nodes don't overlap, node size from SHAPE_DEFAULT_SIZES, resize clamped to the canvas minimums (80×60). New edges get sourceHandle `right-source` / targetHandle `left-target` (left→right flow) and a label via CanvasEdgeData. deleteNode also drops dangling edges. Invalid/duplicate-target actions are skipped without aborting the whole plan
+    - AI presence (cursor + thinking): set via `liveblocks.setPresence(roomId, { userId: 'ghost-ai-agent', data: { cursor, thinking }, userInfo, ttl })` — ephemeral, no WebSocket. Because it surfaces through the same useOthers()/useOthersConnectionIds() flow as humans, the AI cursor + avatar render via the EXISTING LiveCursors / PresenceAvatars components with no changes to them. Cursor moves to where the agent last edited; presence is cleared in a `finally` so it disappears when the run ends
+    - Status feed: `liveblocks.broadcastEvent(roomId, { type: 'ai-status', phase, message, runId })` at each step (started → processing → complete | error). Added a typed `AiStatusEvent` (a `type` alias, NOT an interface — interfaces don't satisfy Liveblocks' Json constraint and produce the "not a valid JSON value" RoomEvent error) + AI agent identity constants (AI_AGENT_USER_ID/NAME/COLOR) to liveblocks.config.ts, and set Liveblocks `RoomEvent: AiStatusEvent`. All status/presence calls are best-effort (wrapped so they can't fail the run)
+    - Error handling: any failure broadcasts an `error` status and re-throws (so Trigger.dev retry/observability still applies); presence always cleared in `finally`
+  - Frontend wiring so presence/status are actually VISIBLE to all participants (spec "Check When Done"):
+    - components/editor/ai-status-feed.tsx — listens for `ai-status` RoomEvents via `useEventListener` (lives inside the RoomProvider, mounted in CanvasFlowInner next to LiveCursors/PresenceAvatars), renders the latest message as a floating top-center pill (spinner while active, check on complete, alert on error; terminal phases auto-dismiss after 4s)
+    - components/editor/ai-sidebar.tsx — Send now POSTs { prompt, projectId, roomId: projectId } to /api/ai/design (the existing trigger route), shows a spinner while sending, and adds a left-aligned system ack/error bubble; roomId == projectId, matching how CanvasEditor mounts `roomId={projectId}` and the liveblocks-auth route keys rooms by projectId. projectId threaded WorkspaceClient → AiSidebar
+  - Scope respected: no canvas-architecture change, no new state system outside Liveblocks, no bypass of the collaborative flow (mutation goes through mutateFlow → Storage; UI reads through useLiveblocksFlow/useOthers/useEventListener)
+  - Verified: `npx tsc --noEmit` clean; `npm run build` passes (/api/ai/design + token registered). eslint on new/changed files clean — remaining errors are pre-existing (3 `{}` empty-object-type in liveblocks.config.ts on Storage/ThreadMetadata/RoomInfo — my RoomEvent change REMOVED one of the original 4; the ghostPos ref-in-render + currentProjectId warnings in untouched code)
+
 ## Next Up
-- Upcoming: AI features or additional canvas interactions
+- Upcoming: spec generation (canvas graph → Markdown), or further AI canvas interactions
+- Note: the design agent runs in Trigger.dev's environment — OPENROUTER_API_KEY and LIVEBLOCKS_SECRET_KEY must be present there (in .env.local for dev; set as Trigger.dev env vars for deploy)
 
 ## Open Questions
 - [Any unresolved product or technical decisions]

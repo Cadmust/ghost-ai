@@ -23,6 +23,7 @@ import { ShapeRenderer } from '@/components/editor/shape-renderer';
 import { CanvasControlBar } from '@/components/editor/canvas-control-bar';
 import { PresenceAvatars } from '@/components/editor/presence-avatars';
 import { LiveCursors } from '@/components/editor/live-cursors';
+import { AiStatusFeed } from '@/components/editor/ai-status-feed';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useCanvasAutosave, type SaveStatus } from '@/hooks/use-canvas-autosave';
 import { useUndo, useRedo, useUpdateMyPresence } from '@liveblocks/react';
@@ -471,6 +472,8 @@ function CanvasFlowInner({ projectId, showTemplates, onTemplatesOpenChange, onSa
       <LiveCursors />
 
       <PresenceAvatars />
+
+      <AiStatusFeed />
 
       <CanvasControlBar />
 
