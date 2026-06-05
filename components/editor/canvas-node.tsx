@@ -12,6 +12,18 @@ import type { CanvasNode, NodeColorTheme } from '@/types/canvas';
 import { ShapeRenderer } from '@/components/editor/shape-renderer';
 import { ColorToolbar } from '@/components/editor/color-toolbar';
 
+// All four sides expose a source and a target handle so a connection can start
+// from and end on any side of any node. Each handle gets a unique id so React
+// Flow can address the overlapping source/target pair independently; the source
+// sits above the target (zIndex) so a drag starts a connection while a drop
+// still lands on the target.
+const HANDLE_POSITIONS = [
+  { position: Position.Top, key: 'top' },
+  { position: Position.Right, key: 'right' },
+  { position: Position.Bottom, key: 'bottom' },
+  { position: Position.Left, key: 'left' },
+] as const;
+
 export const CanvasNodeRenderer = memo(function CanvasNodeRenderer({
   id,
   data,
@@ -146,54 +158,28 @@ export const CanvasNodeRenderer = memo(function CanvasNodeRenderer({
       )}
 
       <div className="node-handles">
-        <Handle
-          type="source"
-          position={Position.Top}
-          className="!border-[var(--border-bold)] !bg-white !w-2.5 !h-2.5 nodrag"
-          style={{ opacity: 0, transition: 'opacity 0.15s' }}
-        />
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="!border-[var(--border-bold)] !bg-white !w-2.5 !h-2.5 nodrag"
-          style={{ opacity: 0, transition: 'opacity 0.15s' }}
-        />
-        <Handle
-          type="source"
-          position={Position.Right}
-          className="!border-[var(--border-bold)] !bg-white !w-2.5 !h-2.5 nodrag"
-          style={{ opacity: 0, transition: 'opacity 0.15s' }}
-        />
-        <Handle
-          type="target"
-          position={Position.Right}
-          className="!border-[var(--border-bold)] !bg-white !w-2.5 !h-2.5 nodrag"
-          style={{ opacity: 0, transition: 'opacity 0.15s' }}
-        />
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="!border-[var(--border-bold)] !bg-white !w-2.5 !h-2.5 nodrag"
-          style={{ opacity: 0, transition: 'opacity 0.15s' }}
-        />
-        <Handle
-          type="target"
-          position={Position.Bottom}
-          className="!border-[var(--border-bold)] !bg-white !w-2.5 !h-2.5 nodrag"
-          style={{ opacity: 0, transition: 'opacity 0.15s' }}
-        />
-        <Handle
-          type="source"
-          position={Position.Left}
-          className="!border-[var(--border-bold)] !bg-white !w-2.5 !h-2.5 nodrag"
-          style={{ opacity: 0, transition: 'opacity 0.15s' }}
-        />
-        <Handle
-          type="target"
-          position={Position.Left}
-          className="!border-[var(--border-bold)] !bg-white !w-2.5 !h-2.5 nodrag"
-          style={{ opacity: 0, transition: 'opacity 0.15s' }}
-        />
+        {HANDLE_POSITIONS.map(({ position, key }) => (
+          <Handle
+            key={`source-${key}`}
+            id={`${key}-source`}
+            type="source"
+            position={position}
+            className="!border-[var(--border-bold)] !bg-white !w-2.5 !h-2.5 nodrag"
+            style={{ opacity: 0, transition: 'opacity 0.15s', zIndex: 1 }}
+            isConnectable
+          />
+        ))}
+        {HANDLE_POSITIONS.map(({ position, key }) => (
+          <Handle
+            key={`target-${key}`}
+            id={`${key}-target`}
+            type="target"
+            position={position}
+            className="!border-[var(--border-bold)] !bg-white !w-2.5 !h-2.5 nodrag"
+            style={{ opacity: 0, transition: 'opacity 0.15s', zIndex: 0 }}
+            isConnectable
+          />
+        ))}
       </div>
 
       <div style={{ position: 'relative', width: '100%', height: '100%' }}>

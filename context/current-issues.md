@@ -82,14 +82,6 @@ Check Clerk agent skills before implemting this.
 
 Remove the UserButton from the workspace navbar only. The navbar is shared so make sure the UserButton remain on the editor home navbar. Conditionlly render it based on whether the component is being used in the workspace context or the editor home context.
 
-### 8. Import template from editor canvas dialog
-
-Check Clerk agent skills before implemting this.
-
-Allow user to import template structure after user click import Button on template dialogs
-
-Make sure the structure template based on template layout.
-
 ## Scope
 
 - Fix only what is listed above

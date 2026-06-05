@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Share2, LayoutTemplateIcon, BotMessageSquare, PanelLeftOpen, PanelLeftClose, Loader2, Save } from 'lucide-react';
-import { UserButton } from '@clerk/nextjs';
 import type { SaveStatus } from '@/hooks/use-canvas-autosave';
 
 interface WorkspaceNavbarProps {
@@ -131,7 +130,6 @@ export function WorkspaceNavbar({
         >
           <BotMessageSquare className="h-4 w-4" />
         </Button>
-        <UserButton />
       </div>
     </nav>
   );
