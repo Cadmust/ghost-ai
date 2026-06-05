@@ -4,10 +4,10 @@ Update this file after every meaningful implementation
 change.
 
 ## Current Phase
-- Feature 19 (Presence Avatars & Live Cursors) implementation complete
+- Feature 21 (Canvas Autosave & Loading) implementation complete
 
 ## Current Goal
-- Upcoming: AI features or additional canvas interactions
+- Upcoming: AI generation logic / Liveblocks AI wiring for the sidebar
 
 ## Completed
 - Install shadcn UI dependencies (clsx, tailwind-merge)
@@ -159,6 +159,45 @@ change.
     - stopPropagation on pointer/mouse events to prevent canvas drag/pan
   - Updated CanvasNodeRenderer to render ColorToolbar when selected and handle color changes via setNodes
   - New nodes default to --text-primary textColor
+
+- Implement AI Sidebar Shell (per feature-specs/20-ai-sidebar-shell.md) — 2026-06-04:
+  - Extracted the AI sidebar placeholder into its own component (components/editor/ai-sidebar.tsx); open/close state stays owned by WorkspaceClient (isAiSidebarOpen + onClose)
+  - Preserved floating fixed overlay (right-0, top-14, bottom-0, w-80, z-40, border-l, backdrop blur, shadow-2xl); slide-in/out now driven by translate-x-0 / translate-x-full keyed on isOpen (component stays mounted so the slide-out animates) instead of conditional mount
+  - Sidebar surface uses bg-surface at 95% via color-mix, --border-subtle border, shadow-2xl
+  - Header: bot icon chip (accent-dim bg / accent-primary fg), title "AI Workspace" (--text-primary), subtitle "Collaborate with Ghost AI" (--text-muted), right-aligned close button wired to onClose
+  - shadcn Tabs with two triggers: "AI Architect" and "Specs" (active styling handled by existing TabsTrigger token rules in globals.css; inactive stays --text-secondary/muted)
+  - AI Architect tab: scrollable chat area; empty state with Sparkles icon, short description, and three starter prompt chips ("Design an e-commerce backend", "Create a chat app architecture", "Build a CI/CD pipeline") styled as soft pills (--bg-subtle bg, --accent-primary text); clicking a chip fills the input
+  - User messages right-aligned with accent-dim bg, 2px accent/50 border (color-mix), --text-primary text
+  - Input area: auto-resizing Textarea (min 72px, max 160px via scrollHeight clamp), Enter submits, Shift+Enter newline, inline Send button
+  - Specs tab: "Generate Spec" button (accent bg, white text), one demo spec card (--bg-elevated bg, --border-subtle border) with file icon, title, snippet, and disabled Download action
+  - Mapped spec's semantic token names (bg-base/95, bg-accent, bg-brand-dim, border-brand/50, text-copy-primary, bg-subtle, text-accent-text, bg-elevated, border-surface-border) to the actual project CSS variables in globals.css (no Tailwind mapping exists for those names; codebase pattern is inline style with var(--token))
+  - No backend, Liveblocks, or AI generation logic added (scope limit respected)
+  - Regenerated Prisma client (npx prisma generate) to clear a pre-existing stale-client build error in lib/projects.ts (generated type had canvasBlobUrl while schema/interface use canvasJsonPath); unrelated to this feature, now `npm run build` passes
+
+- Implement Canvas Autosave & Loading (per feature-specs/21-canvas-autosave.md) — 2026-06-05:
+  - Installed @vercel/blob; reused existing Project.canvasJsonPath field to store the canvas blob URL (Prisma holds only the reference/metadata)
+  - Added app/api/projects/[projectId]/canvas/route.ts:
+    - PUT — validates payload ({ nodes, edges } arrays) at the boundary, enforces membership via getProjectAccess (owner or collaborator), uploads JSON to Vercel Blob at canvas/{projectId}.json (addRandomSuffix:false, allowOverwrite:true so the URL is stable), stores the returned blob URL on the project via prisma.project.update
+    - GET — enforces the same access check, reads canvasJsonPath from Prisma, fetches the JSON from Blob (cache:'no-store'), validates shape, returns { nodes, edges }; returns empty arrays when no blob is saved
+  - Added hooks/use-canvas-autosave.ts: watches nodes/edges, debounces saves (1500ms), PUTs through the canvas route, tracks status (idle | saving | saved | error); skips the first run and stays disabled until load resolves so the initial empty state never clobbers persisted content
+  - Wired load + autosave into components/editor/canvas-editor.tsx (CanvasFlowInner):
+    - One-time load on mount: if the Liveblocks room already has nodes/edges, skip the load entirely; only when empty does it fetch the saved canvas and inject it via onNodesChange/onEdgesChange 'add' changes
+    - Autosave enabled only after the load check resolves (loadResolved gate); reports saveStatus up via onSaveStatusChange
+  - Added a save status indicator in the workspace navbar (saving/saved/error states with icon + label), wired saveStatus through WorkspaceClient → WorkspaceNavbar
+  - Build passes; new files lint clean (pre-existing ghostPos ref-in-render and currentProjectId warnings are unrelated)
+
+- Fix current-issues #1 — Workspace Save button + canvas route hardening — 2026-06-05:
+  - hooks/use-canvas-autosave.ts now returns { status, save } instead of just status:
+    - Extracted the PUT logic into a memoized persist() callback; autosave debounce and the new manual save() both go through it, so manual and automatic saves share one code path
+    - save() clears any pending debounced autosave then persists immediately; latest nodes/edges read from a ref so the function identity stays stable
+  - components/editor/canvas-editor.tsx: destructures { status, save } from the hook and exposes save upward via a new onSaveAvailable(save) callback (threaded CanvasEditor → CanvasFlow → CanvasFlowInner); save status reporting unchanged
+  - components/editor/workspace-client.tsx: holds the save fn in a ref (handleSaveAvailable), passes onSave={handleSave} to the navbar and onSaveAvailable to CanvasEditor
+  - components/editor/workspace-navbar.tsx: added a Save button (Save icon, spinner while saving) before the Templates button; label is "Save"/"Saving…"/"Saved"/"Error" driven by saveStatus, with terminal "Saved"/"Error" reverting to "Save" after 1.5s via a local timer (autosave hook status semantics untouched); button disabled while saving. Button lives only in WorkspaceNavbar (workspace context) — editor home uses the separate EditorNavbar, so it never appears there
+  - app/api/projects/[projectId]/canvas/route.ts:
+    - PUT: changed blob access from 'public' to 'private'
+    - GET: replaced the raw fetch(blobUrl) with the Vercel Blob SDK get(blobUrl, { access: 'private' }); reads result.stream via new Response(stream).json(), guards null/non-200 and invalid shape, returns empty arrays on miss
+  - tsc clean; eslint clean on changed files (the two canvas-editor.tsx errors at the load effect and ghost-drag element are pre-existing, in untouched code)
+  - Follow-up: removed the duplicate save status display. The navbar previously showed both the pre-existing cloud/check status indicator AND the Save button label, so "Saving…/Saved" rendered twice. Removed the standalone SAVE_INDICATOR indicator (and its now-unused Cloud/Check/CloudAlert imports); the Save button is now the single status-bearing element (Save icon + label, spinner while saving, aria-live for status announcement)
 
 ## Next Up
 - Upcoming: AI features or additional canvas interactions

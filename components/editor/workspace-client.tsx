@@ -10,6 +10,8 @@ import { CreateProjectDialog } from '@/components/editor/dialogs/CreateProjectDi
 import { RenameProjectDialog } from '@/components/editor/dialogs/RenameProjectDialog';
 import { DeleteProjectDialog } from '@/components/editor/dialogs/DeleteProjectDialog';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
+import { AiSidebar } from '@/components/editor/ai-sidebar';
+import type { SaveStatus } from '@/hooks/use-canvas-autosave';
 
 interface WorkspaceClientProps {
   projectId: string;
@@ -32,6 +34,16 @@ export function WorkspaceClient({
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const saveRef = useRef<(() => Promise<void>) | null>(null);
+
+  const handleSave = useCallback(() => {
+    void saveRef.current?.();
+  }, []);
+
+  const handleSaveAvailable = useCallback((save: () => Promise<void>) => {
+    saveRef.current = save;
+  }, []);
 
   const {
     isCreateOpen,
@@ -74,10 +86,12 @@ export function WorkspaceClient({
         projectName={projectName}
         isSidebarOpen={isSidebarOpen}
         isAiSidebarOpen={isAiSidebarOpen}
+        saveStatus={saveStatus}
         onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
         onAiSidebarToggle={() => setIsAiSidebarOpen(!isAiSidebarOpen)}
         onShare={() => setIsShareDialogOpen(true)}
         onTemplates={() => setShowTemplates(true)}
+        onSave={handleSave}
       />
 
       {/* Main workspace area */}
@@ -99,25 +113,20 @@ export function WorkspaceClient({
 
         {/* Center Canvas — fills available space, no card styling */}
         <main className="flex-1 flex flex-col overflow-hidden">
-          <CanvasEditor roomId={projectId} showTemplates={showTemplates} onTemplatesOpenChange={setShowTemplates} />
+          <CanvasEditor
+            roomId={projectId}
+            showTemplates={showTemplates}
+            onTemplatesOpenChange={setShowTemplates}
+            onSaveStatusChange={setSaveStatus}
+            onSaveAvailable={handleSaveAvailable}
+          />
         </main>
 
         {/* Right AI Sidebar — fixed overlay, not inline flow */}
-        {isAiSidebarOpen && (
-          <aside
-            style={{
-              backgroundColor: 'var(--bg-surface)',
-              borderLeftColor: 'var(--border-subtle)',
-            }}
-            className="fixed right-0 top-14 bottom-0 w-72 z-40 border-l overflow-y-auto shadow-lg"
-          >
-            <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-              <p style={{ color: 'var(--text-muted)' }} className="text-sm">
-                AI chat will appear here
-              </p>
-            </div>
-          </aside>
-        )}
+        <AiSidebar
+          isOpen={isAiSidebarOpen}
+          onClose={() => setIsAiSidebarOpen(false)}
+        />
       </div>
 
       {/* Share Dialog */}

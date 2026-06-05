@@ -1,6 +1,6 @@
 'use client';
 
-import { Component, type ReactNode, useCallback, useState, useRef, type DragEvent, type MouseEvent } from 'react';
+import { Component, type ReactNode, useCallback, useEffect, useState, useRef, type DragEvent, type MouseEvent } from 'react';
 import {
   LiveblocksProvider,
   RoomProvider,
@@ -24,6 +24,7 @@ import { CanvasControlBar } from '@/components/editor/canvas-control-bar';
 import { PresenceAvatars } from '@/components/editor/presence-avatars';
 import { LiveCursors } from '@/components/editor/live-cursors';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useCanvasAutosave, type SaveStatus } from '@/hooks/use-canvas-autosave';
 import { useUndo, useRedo, useUpdateMyPresence } from '@liveblocks/react';
 import { StarterTemplatesModal } from '@/components/editor/starter-templates-modal';
 import type { CanvasTemplate } from '@/components/editor/starter-templates';
@@ -34,6 +35,8 @@ interface CanvasEditorProps {
   roomId: string;
   showTemplates?: boolean;
   onTemplatesOpenChange?: (open: boolean) => void;
+  onSaveStatusChange?: (status: SaveStatus) => void;
+  onSaveAvailable?: (save: () => Promise<void>) => void;
 }
 
 const defaultEdgeOptions: DefaultEdgeOptions = {
@@ -49,13 +52,21 @@ const edgeTypes = {
   canvasEdge: CanvasEdgeRenderer,
 };
 
-export function CanvasEditor({ roomId, showTemplates = false, onTemplatesOpenChange }: CanvasEditorProps) {
+export function CanvasEditor({ roomId, showTemplates = false, onTemplatesOpenChange, onSaveStatusChange, onSaveAvailable }: CanvasEditorProps) {
   return (
     <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
       <RoomProvider id={roomId} initialPresence={{ cursor: null, thinking: false }}>
         <ErrorBoundary fallback={<CanvasErrorFallback />}>
           <ClientSideSuspense fallback={<CanvasLoadingFallback />}>
-            {() => <CanvasFlow showTemplates={showTemplates} onTemplatesOpenChange={onTemplatesOpenChange} />}
+            {() => (
+              <CanvasFlow
+                projectId={roomId}
+                showTemplates={showTemplates}
+                onTemplatesOpenChange={onTemplatesOpenChange}
+                onSaveStatusChange={onSaveStatusChange}
+                onSaveAvailable={onSaveAvailable}
+              />
+            )}
           </ClientSideSuspense>
         </ErrorBoundary>
       </RoomProvider>
@@ -63,15 +74,29 @@ export function CanvasEditor({ roomId, showTemplates = false, onTemplatesOpenCha
   );
 }
 
-function CanvasFlow({ showTemplates, onTemplatesOpenChange }: { showTemplates: boolean; onTemplatesOpenChange?: (open: boolean) => void }) {
+interface CanvasFlowProps {
+  projectId: string;
+  showTemplates: boolean;
+  onTemplatesOpenChange?: (open: boolean) => void;
+  onSaveStatusChange?: (status: SaveStatus) => void;
+  onSaveAvailable?: (save: () => Promise<void>) => void;
+}
+
+function CanvasFlow({ projectId, showTemplates, onTemplatesOpenChange, onSaveStatusChange, onSaveAvailable }: CanvasFlowProps) {
   return (
     <ReactFlowProvider>
-      <CanvasFlowInner showTemplates={showTemplates} onTemplatesOpenChange={onTemplatesOpenChange} />
+      <CanvasFlowInner
+        projectId={projectId}
+        showTemplates={showTemplates}
+        onTemplatesOpenChange={onTemplatesOpenChange}
+        onSaveStatusChange={onSaveStatusChange}
+        onSaveAvailable={onSaveAvailable}
+      />
     </ReactFlowProvider>
   );
 }
 
-function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplates: boolean; onTemplatesOpenChange?: (open: boolean) => void }) {
+function CanvasFlowInner({ projectId, showTemplates, onTemplatesOpenChange, onSaveStatusChange, onSaveAvailable }: CanvasFlowProps) {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect } =
     useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true });
   const reactFlowInstance = useReactFlow();
@@ -82,6 +107,68 @@ function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplat
   const updateMyPresence = useUpdateMyPresence();
 
   useKeyboardShortcuts({ reactFlowInstance, undo, redo });
+
+  // Load saved canvas state once, only into an empty room. If the room already
+  // has nodes or edges, skip the load entirely so active collaboration is never
+  // overwritten. Autosave stays disabled until this check resolves so the
+  // initial empty state can't clobber the persisted blob.
+  const hasLoadedRef = useRef(false);
+  const [loadResolved, setLoadResolved] = useState(false);
+
+  useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
+    if (nodes.length > 0 || edges.length > 0) {
+      setLoadResolved(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/canvas`);
+        if (!cancelled && response.ok) {
+          const saved: { nodes?: CanvasNode[]; edges?: CanvasEdge[] } = await response.json();
+          const savedNodes = saved.nodes ?? [];
+          const savedEdges = saved.edges ?? [];
+
+          if (savedNodes.length > 0 || savedEdges.length > 0) {
+            onNodesChange(savedNodes.map((item) => ({ type: 'add', item })));
+            onEdgesChange(savedEdges.map((item) => ({ type: 'add', item })));
+          }
+        }
+      } catch {
+        // Loading failed; leave the room empty and let the user start fresh.
+      } finally {
+        if (!cancelled) setLoadResolved(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Run once on mount; node/edge presence is captured at first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  const { status: saveStatus, save } = useCanvasAutosave({
+    projectId,
+    nodes,
+    edges,
+    enabled: loadResolved,
+  });
+
+  useEffect(() => {
+    onSaveStatusChange?.(saveStatus);
+  }, [saveStatus, onSaveStatusChange]);
+
+  // Expose the manual save function so the workspace Save button can trigger
+  // an immediate save through the same path as autosave.
+  useEffect(() => {
+    onSaveAvailable?.(save);
+  }, [save, onSaveAvailable]);
 
   // Broadcast the cursor in flow (canvas) coordinates so it stays anchored to
   // the same point on the diagram regardless of each viewer's pan and zoom.
