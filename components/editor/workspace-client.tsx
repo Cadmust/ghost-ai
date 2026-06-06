@@ -10,7 +10,6 @@ import { CreateProjectDialog } from '@/components/editor/dialogs/CreateProjectDi
 import { RenameProjectDialog } from '@/components/editor/dialogs/RenameProjectDialog';
 import { DeleteProjectDialog } from '@/components/editor/dialogs/DeleteProjectDialog';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
-import { AiSidebar } from '@/components/editor/ai-sidebar';
 import type { SaveStatus } from '@/hooks/use-canvas-autosave';
 
 interface WorkspaceClientProps {
@@ -111,7 +110,9 @@ export function WorkspaceClient({
           currentRoomId={projectId}
         />
 
-        {/* Center Canvas — fills available space, no card styling */}
+        {/* Center Canvas — fills available space, no card styling. The AI
+            sidebar (fixed overlay) is rendered inside CanvasEditor's
+            RoomProvider so it can subscribe to the shared `ai-status-feed`. */}
         <main className="flex-1 flex flex-col overflow-hidden">
           <CanvasEditor
             roomId={projectId}
@@ -119,15 +120,10 @@ export function WorkspaceClient({
             onTemplatesOpenChange={setShowTemplates}
             onSaveStatusChange={setSaveStatus}
             onSaveAvailable={handleSaveAvailable}
+            isAiSidebarOpen={isAiSidebarOpen}
+            onAiSidebarClose={() => setIsAiSidebarOpen(false)}
           />
         </main>
-
-        {/* Right AI Sidebar — fixed overlay, not inline flow */}
-        <AiSidebar
-          isOpen={isAiSidebarOpen}
-          onClose={() => setIsAiSidebarOpen(false)}
-          projectId={projectId}
-        />
       </div>
 
       {/* Share Dialog */}

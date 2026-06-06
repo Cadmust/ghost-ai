@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { tasks } from '@trigger.dev/sdk';
+import { tasks, auth as triggerAuth } from '@trigger.dev/sdk';
 import prisma from '@/lib/prisma';
 import { getCurrentIdentity, canAccessProject } from '@/lib/project-access';
 import type { designAgentTask } from '@/trigger/design-agent';
@@ -66,7 +66,21 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ runId: handle.id });
+    // Mint a public token scoped to read just this run so the client can
+    // subscribe via useRealtimeRun without a second round-trip. The caller is
+    // already authenticated and owns the run (we just created it for them), so
+    // returning the token here is safe. The standalone /token route stays as
+    // the verified path for re-minting an expired token on an existing run.
+    const publicToken = await triggerAuth.createPublicToken({
+      scopes: {
+        read: {
+          runs: [handle.id],
+        },
+      },
+      expirationTime: '1h',
+    });
+
+    return NextResponse.json({ runId: handle.id, publicToken });
   } catch (error) {
     console.error('[AI_DESIGN_POST]', error);
     return new NextResponse('Internal Error', { status: 500 });

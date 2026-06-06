@@ -1,5 +1,6 @@
 import { auth, clerkClient } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
+import { normalizeEmail } from '@/lib/project-access';
 
 export interface ProjectWithCollaborators {
   id: string;
@@ -31,7 +32,7 @@ export async function getProjectsForUser() {
     try {
       const client = await clerkClient();
       const user = await client.users.getUser(userId);
-      const email = user.emailAddresses[0]?.emailAddress;
+      const email = normalizeEmail(user.emailAddresses[0]?.emailAddress);
 
       if (email) {
         const collaborators = await prisma.projectCollaborator.findMany({

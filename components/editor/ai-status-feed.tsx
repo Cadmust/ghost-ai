@@ -1,39 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useEventListener } from '@liveblocks/react/suspense';
 import { Loader2, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
-import type { AiStatusEvent } from '@/liveblocks.config';
+import { useAiStatusFeed } from '@/hooks/use-ai-status-feed';
+import type { AiStatusPhase } from '@/types/tasks';
 
 /**
- * Shows the AI design agent's live status to every participant in the room.
+ * Shows the AI agent's live status to every participant in the room.
  *
- * The agent (trigger/design-agent.ts) broadcasts `ai-status` room events at each
- * step (started → processing → complete | error). This listens for those events
- * — so the feed is visible to all collaborators, not just the person who
- * triggered the run — and renders the latest message as a floating pill at the
- * top-center of the canvas. Terminal phases (complete/error) auto-dismiss.
+ * Reads the shared `ai-status-feed` (validated in useAiStatusFeed) and renders
+ * only the most recent message as a floating pill at the top-center of the
+ * canvas. The feed is broadcast by the background task, so the status is visible
+ * to all collaborators — not just the person who triggered the run. Terminal
+ * phases (complete/error) auto-dismiss via the hook.
  */
 export function AiStatusFeed() {
-  const [status, setStatus] = useState<AiStatusEvent | null>(null);
+  const { latest } = useAiStatusFeed();
 
-  useEventListener(({ event }) => {
-    if (event.type !== 'ai-status') return;
-    setStatus(event);
-  });
+  if (!latest || !latest.text) return null;
 
-  // Auto-dismiss once the run reaches a terminal phase.
-  useEffect(() => {
-    if (!status) return;
-    if (status.phase !== 'complete' && status.phase !== 'error') return;
-    const timer = setTimeout(() => setStatus(null), 4000);
-    return () => clearTimeout(timer);
-  }, [status]);
-
-  if (!status) return null;
-
-  const isActive = status.phase === 'started' || status.phase === 'processing';
-  const isError = status.phase === 'error';
+  const isError = latest.phase === 'error';
 
   return (
     <div className="pointer-events-none absolute left-1/2 top-4 z-40 -translate-x-1/2">
@@ -51,14 +36,14 @@ export function AiStatusFeed() {
           color: 'var(--text-primary)',
         }}
       >
-        <StatusIcon phase={status.phase} active={isActive} />
-        <span className="whitespace-nowrap">{status.message}</span>
+        <StatusIcon phase={latest.phase} />
+        <span className="whitespace-nowrap">{latest.text}</span>
       </div>
     </div>
   );
 }
 
-function StatusIcon({ phase, active }: { phase: AiStatusEvent['phase']; active: boolean }) {
+function StatusIcon({ phase }: { phase: AiStatusPhase }) {
   if (phase === 'error') {
     return <AlertCircle className="h-4 w-4 shrink-0" style={{ color: 'var(--state-error)' }} />;
   }
@@ -67,7 +52,7 @@ function StatusIcon({ phase, active }: { phase: AiStatusEvent['phase']; active: 
       <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: 'var(--accent-primary)' }} />
     );
   }
-  if (active) {
+  if (phase === 'started' || phase === 'processing') {
     return (
       <Loader2
         className="h-4 w-4 shrink-0 animate-spin"

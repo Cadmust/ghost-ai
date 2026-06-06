@@ -1,16 +1,4 @@
-/**
- * Shared status feed broadcast by the AI design agent (trigger/design-agent.ts)
- * so every connected participant can follow the agent's progress in real time.
- * Phases: started → processing (one per applied change) → complete | error.
- */
-export type AiStatusEvent = {
-  type: 'ai-status';
-  phase: 'started' | 'processing' | 'complete' | 'error';
-  /** Human-readable status line shown to all participants. */
-  message: string;
-  /** The run id of the originating Trigger.dev task, for correlation. */
-  runId: string;
-};
+import type { AiStatusMessage, AiChatMessage } from './types/tasks';
 
 /**
  * Identity used for the AI agent's ephemeral presence in a room. The agent sets
@@ -40,7 +28,13 @@ declare global {
       };
     };
 
-    RoomEvent: AiStatusEvent;
+    // Room events share one transport, split into separate "feeds" by the
+    // `feed` discriminator on each payload:
+    //  - `ai-status-feed` (AiStatusMessage): AI progress/presence, reusable for
+    //    design and spec generation. See parseAiStatusMessage.
+    //  - `ai-chat` (AiChatMessage): human room chat. See parseAiChatMessage.
+    // Both schemas + validators live in types/tasks.ts.
+    RoomEvent: AiStatusMessage | AiChatMessage;
 
     ThreadMetadata: {};
 

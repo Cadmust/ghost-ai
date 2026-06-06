@@ -24,6 +24,7 @@ import { CanvasControlBar } from '@/components/editor/canvas-control-bar';
 import { PresenceAvatars } from '@/components/editor/presence-avatars';
 import { LiveCursors } from '@/components/editor/live-cursors';
 import { AiStatusFeed } from '@/components/editor/ai-status-feed';
+import { AiSidebar } from '@/components/editor/ai-sidebar';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useCanvasAutosave, type SaveStatus } from '@/hooks/use-canvas-autosave';
 import { useUndo, useRedo, useUpdateMyPresence } from '@liveblocks/react';
@@ -38,6 +39,10 @@ interface CanvasEditorProps {
   onTemplatesOpenChange?: (open: boolean) => void;
   onSaveStatusChange?: (status: SaveStatus) => void;
   onSaveAvailable?: (save: () => Promise<void>) => void;
+  /** AI sidebar open state — owned by the workspace, rendered inside the room
+   *  so it can subscribe to the shared `ai-status-feed`. */
+  isAiSidebarOpen?: boolean;
+  onAiSidebarClose?: () => void;
 }
 
 const defaultEdgeOptions: DefaultEdgeOptions = {
@@ -53,7 +58,7 @@ const edgeTypes = {
   canvasEdge: CanvasEdgeRenderer,
 };
 
-export function CanvasEditor({ roomId, showTemplates = false, onTemplatesOpenChange, onSaveStatusChange, onSaveAvailable }: CanvasEditorProps) {
+export function CanvasEditor({ roomId, showTemplates = false, onTemplatesOpenChange, onSaveStatusChange, onSaveAvailable, isAiSidebarOpen = false, onAiSidebarClose }: CanvasEditorProps) {
   return (
     <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
       <RoomProvider id={roomId} initialPresence={{ cursor: null, thinking: false }}>
@@ -66,6 +71,8 @@ export function CanvasEditor({ roomId, showTemplates = false, onTemplatesOpenCha
                 onTemplatesOpenChange={onTemplatesOpenChange}
                 onSaveStatusChange={onSaveStatusChange}
                 onSaveAvailable={onSaveAvailable}
+                isAiSidebarOpen={isAiSidebarOpen}
+                onAiSidebarClose={onAiSidebarClose}
               />
             )}
           </ClientSideSuspense>
@@ -81,9 +88,11 @@ interface CanvasFlowProps {
   onTemplatesOpenChange?: (open: boolean) => void;
   onSaveStatusChange?: (status: SaveStatus) => void;
   onSaveAvailable?: (save: () => Promise<void>) => void;
+  isAiSidebarOpen: boolean;
+  onAiSidebarClose?: () => void;
 }
 
-function CanvasFlow({ projectId, showTemplates, onTemplatesOpenChange, onSaveStatusChange, onSaveAvailable }: CanvasFlowProps) {
+function CanvasFlow({ projectId, showTemplates, onTemplatesOpenChange, onSaveStatusChange, onSaveAvailable, isAiSidebarOpen, onAiSidebarClose }: CanvasFlowProps) {
   return (
     <ReactFlowProvider>
       <CanvasFlowInner
@@ -92,12 +101,14 @@ function CanvasFlow({ projectId, showTemplates, onTemplatesOpenChange, onSaveSta
         onTemplatesOpenChange={onTemplatesOpenChange}
         onSaveStatusChange={onSaveStatusChange}
         onSaveAvailable={onSaveAvailable}
+        isAiSidebarOpen={isAiSidebarOpen}
+        onAiSidebarClose={onAiSidebarClose}
       />
     </ReactFlowProvider>
   );
 }
 
-function CanvasFlowInner({ projectId, showTemplates, onTemplatesOpenChange, onSaveStatusChange, onSaveAvailable }: CanvasFlowProps) {
+function CanvasFlowInner({ projectId, showTemplates, onTemplatesOpenChange, onSaveStatusChange, onSaveAvailable, isAiSidebarOpen, onAiSidebarClose }: CanvasFlowProps) {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, onDelete } =
     useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true });
   const reactFlowInstance = useReactFlow();
@@ -474,6 +485,12 @@ function CanvasFlowInner({ projectId, showTemplates, onTemplatesOpenChange, onSa
       <PresenceAvatars />
 
       <AiStatusFeed />
+
+      <AiSidebar
+        projectId={projectId}
+        isOpen={isAiSidebarOpen}
+        onClose={onAiSidebarClose ?? (() => {})}
+      />
 
       <CanvasControlBar />
 

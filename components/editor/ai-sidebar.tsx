@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRealtimeRun } from '@trigger.dev/react-hooks';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,22 +11,25 @@ import {
   Sparkles,
   Send,
   FileText,
-  Download,
   Loader2,
 } from 'lucide-react';
+import { useAiStatusFeed } from '@/hooks/use-ai-status-feed';
+import { useAiChatFeed } from '@/hooks/use-ai-chat-feed';
+import { SpecsPanel } from '@/components/editor/specs-panel';
+import type { designAgentTask } from '@/trigger/design-agent';
 
 interface AiSidebarProps {
+  /** Project / Liveblocks room the design agent should act on. */
+  projectId: string;
   /** Open/close state is owned by the parent. */
   isOpen: boolean;
   onClose: () => void;
-  /** Project (and Liveblocks room) the design agent should generate into. */
-  projectId: string;
 }
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'system';
-  content: string;
+/** A triggered design run we're tracking via Trigger.dev realtime. */
+interface ActiveRun {
+  runId: string;
+  publicToken: string;
 }
 
 const STARTER_PROMPTS = [
@@ -37,11 +41,90 @@ const STARTER_PROMPTS = [
 const TEXTAREA_MIN_HEIGHT = 72;
 const TEXTAREA_MAX_HEIGHT = 160;
 
-export function AiSidebar({ isOpen, onClose, projectId }: AiSidebarProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+/** Format a message timestamp as a short local time (e.g. "3:42 PM"). */
+function formatTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+export function AiSidebar({ projectId, isOpen, onClose }: AiSidebarProps) {
   const [input, setInput] = useState('');
-  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Shared room chat over the `ai-chat` feed — separate from the AI status feed
+  // below. Messages are broadcast to and received from every participant. The
+  // user's prompt and the AI's completion summary are both posted here.
+  const { messages, sendMessage, sendAiMessage } = useAiChatFeed();
+
+  // Shared generation state from the `ai-status-feed` — broadcast by the design
+  // agent and visible to EVERY participant. Drives the status strip + busy
+  // state regardless of who triggered the run.
+  const { latest: aiStatus, isActive: isGenerating } = useAiStatusFeed();
+
+  // Subscribe to the run we triggered. useRealtimeRun is a no-op until a runId
+  // is provided; on completion we post the agent's summary back to the chat and
+  // clear the run so the composer re-enables. The canvas itself updates through
+  // Liveblocks (Storage mutated server-side) — never touched here.
+  const { run: trackedRun } = useRealtimeRun<typeof designAgentTask>(
+    activeRun?.runId,
+    {
+      accessToken: activeRun?.publicToken,
+      enabled: !!activeRun,
+      onComplete: (run, error) => {
+        if (!error && run.output?.summary) {
+          try {
+            sendAiMessage(run.output.summary);
+          } catch {
+            // Posting the summary is best-effort; the canvas already updated.
+          }
+        }
+        setActiveRun(null);
+      },
+    },
+  );
+
+  // Safety net: clear the run as soon as the subscription reports a terminal
+  // status, even if onComplete didn't fire (a dropped/late terminal snapshot
+  // would otherwise leave the composer stuck on "Ghost AI is working…"). The
+  // summary is posted from onComplete; this only guarantees the busy state
+  // releases. Runs only advance forward, so a terminal status is final.
+  useEffect(() => {
+    if (!trackedRun || !activeRun) return;
+    if (trackedRun.id !== activeRun.runId) return;
+    const TERMINAL: readonly string[] = [
+      'COMPLETED',
+      'FAILED',
+      'CANCELED',
+      'CRASHED',
+      'SYSTEM_FAILURE',
+      'EXPIRED',
+      'TIMED_OUT',
+    ];
+    if (TERMINAL.includes(trackedRun.status)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- terminal-status release from realtime subscription
+      setActiveRun(null);
+    }
+  }, [trackedRun, activeRun]);
+
+  // A run is in flight while we're POSTing, while our own run is live, or while
+  // ANY participant's run is active on the shared status feed (collaborative
+  // busy state). `activeRun` follows the authoritative Trigger.dev run state and
+  // clears on a terminal status (see the effect above), and `isGenerating` is
+  // now self-healing (useAiStatusFeed clears a stale active status), so a
+  // dropped terminal event can no longer wedge the composer shut indefinitely.
+  const isBusy = isSubmitting || !!activeRun || isGenerating;
+
+  // Keep the chat scrolled to the latest message as it grows.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
 
   const autoResize = (el: HTMLTextAreaElement) => {
     el.style.height = `${TEXTAREA_MIN_HEIGHT}px`;
@@ -52,53 +135,50 @@ export function AiSidebar({ isOpen, onClose, projectId }: AiSidebarProps) {
     el.style.height = `${next}px`;
   };
 
-  const submitMessage = async () => {
+  const submitMessage = useCallback(async () => {
     const trimmed = input.trim();
-    if (!trimmed || isSending) return;
+    if (!trimmed || isBusy) return;
 
-    setMessages((prev) => [
-      ...prev,
-      { id: `${Date.now()}`, role: 'user', content: trimmed },
-    ]);
+    // Post the user's prompt to the shared chat immediately.
+    try {
+      sendMessage(trimmed);
+    } catch {
+      setSendError(true);
+      return;
+    }
+
+    // Clear the composer once the prompt is in the feed.
     setInput('');
+    setSendError(false);
     if (textareaRef.current) {
       textareaRef.current.style.height = `${TEXTAREA_MIN_HEIGHT}px`;
     }
 
-    // Kick off the background design agent. Progress (presence + status feed)
-    // surfaces on the shared canvas for every participant, so the sidebar only
-    // needs to confirm the request was accepted or report a failure.
-    setIsSending(true);
+    // Trigger the design agent and start tracking the run.
+    setIsSubmitting(true);
     try {
       const response = await fetch('/api/ai/design', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: trimmed, projectId, roomId: projectId }),
+        // roomId == projectId — the canvas room is keyed by project id.
+        body: JSON.stringify({ prompt: trimmed, roomId: projectId, projectId }),
       });
-      if (!response.ok) {
-        throw new Error(`Request failed (${response.status})`);
-      }
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-ack`,
-          role: 'system',
-          content: 'Ghost AI is working on the canvas — watch it build your design.',
-        },
-      ]);
+      if (!response.ok) throw new Error(`Design request failed: ${response.status}`);
+
+      const { runId, publicToken } = (await response.json()) as {
+        runId?: string;
+        publicToken?: string;
+      };
+      if (!runId || !publicToken) throw new Error('Missing run token');
+
+      setActiveRun({ runId, publicToken });
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-err`,
-          role: 'system',
-          content: "Couldn't start the design agent. Please try again.",
-        },
-      ]);
+      // Surface a small error and let the realtime/status feed clear itself.
+      setSendError(true);
     } finally {
-      setIsSending(false);
+      setIsSubmitting(false);
     }
-  };
+  }, [input, isBusy, sendMessage, projectId]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -171,7 +251,7 @@ export function AiSidebar({ isOpen, onClose, projectId }: AiSidebarProps) {
       {/* Tabbed layout */}
       <Tabs
         defaultValue="architect"
-        className="flex-1 min-h-0 gap-0"
+        className="flex-1 min-h-0 min-w-0 gap-0"
       >
         <div className="px-4 pt-3 shrink-0">
           <TabsList className="w-full bg-transparent gap-1">
@@ -192,7 +272,7 @@ export function AiSidebar({ isOpen, onClose, projectId }: AiSidebarProps) {
           className="flex flex-col min-h-0 data-[state=inactive]:hidden"
         >
           {/* Scrollable chat area */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center gap-4 py-8">
                 <div
@@ -208,7 +288,7 @@ export function AiSidebar({ isOpen, onClose, projectId }: AiSidebarProps) {
                   style={{ color: 'var(--text-muted)' }}
                   className="text-sm max-w-[14rem]"
                 >
-                  Describe a system and Ghost AI will map it onto the canvas.
+                  Describe a system and Ghost AI will design it on the canvas.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   {STARTER_PROMPTS.map((prompt) => (
@@ -216,11 +296,12 @@ export function AiSidebar({ isOpen, onClose, projectId }: AiSidebarProps) {
                       key={prompt}
                       type="button"
                       onClick={() => handleStarterClick(prompt)}
+                      disabled={isBusy}
                       style={{
                         backgroundColor: 'var(--bg-subtle)',
                         color: 'var(--accent-primary)',
                       }}
-                      className="rounded-full px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
+                      className="rounded-full px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {prompt}
                     </button>
@@ -229,34 +310,47 @@ export function AiSidebar({ isOpen, onClose, projectId }: AiSidebarProps) {
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {messages.map((message) =>
-                  message.role === 'user' ? (
-                    <div key={message.id} className="flex justify-end">
+                {messages.map((message) => {
+                  const isAi = message.role === 'ai';
+                  return (
+                    <div
+                      key={message.id}
+                      className={`flex flex-col gap-1 ${isAi ? 'items-start' : 'items-end'}`}
+                    >
+                      {/* Sender + timestamp */}
                       <div
-                        style={{
-                          backgroundColor: 'var(--accent-primary-dim)',
-                          borderColor: 'color-mix(in srgb, var(--accent-primary) 50%, transparent)',
-                          color: 'var(--text-primary)',
-                        }}
-                        className="max-w-[80%] rounded-2xl border-2 px-3 py-2 text-sm whitespace-pre-wrap break-words"
+                        className="flex items-center gap-2 px-1 text-[11px]"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        <span className="font-medium truncate max-w-[10rem]">
+                          {message.sender}
+                        </span>
+                        <span>{formatTime(message.timestamp)}</span>
+                      </div>
+                      {/* Message content */}
+                      <div
+                        style={
+                          isAi
+                            ? {
+                                backgroundColor: 'var(--bg-subtle)',
+                                color: 'var(--text-secondary)',
+                              }
+                            : {
+                                backgroundColor: 'var(--accent-primary-dim)',
+                                borderColor:
+                                  'color-mix(in srgb, var(--accent-primary) 50%, transparent)',
+                                color: 'var(--text-primary)',
+                              }
+                        }
+                        className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words ${
+                          isAi ? '' : 'border-2'
+                        }`}
                       >
                         {message.content}
                       </div>
                     </div>
-                  ) : (
-                    <div key={message.id} className="flex justify-start">
-                      <div
-                        style={{
-                          backgroundColor: 'var(--bg-subtle)',
-                          color: 'var(--text-secondary)',
-                        }}
-                        className="max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words"
-                      >
-                        {message.content}
-                      </div>
-                    </div>
-                  ),
-                )}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -266,17 +360,48 @@ export function AiSidebar({ isOpen, onClose, projectId }: AiSidebarProps) {
             style={{ borderTopColor: 'var(--border-subtle)' }}
             className="border-t px-4 py-3 shrink-0"
           >
+            {/* Compact status strip — shown only while a run is active. Reflects
+                the room-wide `ai-status-feed`, so every participant sees the
+                latest progress line (not just the person who triggered it). */}
+            {isBusy && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="mb-2 flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium"
+                style={{
+                  backgroundColor: 'var(--accent-primary-dim)',
+                  color: 'var(--accent-primary)',
+                }}
+              >
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                <span className="truncate">
+                  {aiStatus?.text ?? 'Ghost AI is working…'}
+                </span>
+              </div>
+            )}
+            {/* Small error state if the last send failed. */}
+            {sendError && (
+              <p
+                role="alert"
+                className="mb-2 px-1 text-xs"
+                style={{ color: 'var(--state-error)' }}
+              >
+                Couldn&apos;t send your message. Please try again.
+              </p>
+            )}
             <div className="relative">
               <Textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => {
                   setInput(e.target.value);
+                  if (sendError) setSendError(false);
                   autoResize(e.target);
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder="Describe the system you want to design…"
+                placeholder="Describe a system to design…"
                 rows={1}
+                disabled={isBusy}
                 style={{
                   minHeight: `${TEXTAREA_MIN_HEIGHT}px`,
                   maxHeight: `${TEXTAREA_MAX_HEIGHT}px`,
@@ -284,13 +409,13 @@ export function AiSidebar({ isOpen, onClose, projectId }: AiSidebarProps) {
                   borderColor: 'var(--border-subtle)',
                   color: 'var(--text-primary)',
                 }}
-                className="resize-none pr-12"
+                className="resize-none pr-12 disabled:opacity-60"
               />
               <Button
                 type="button"
                 size="icon"
                 onClick={() => void submitMessage()}
-                disabled={!input.trim() || isSending}
+                disabled={!input.trim() || isBusy}
                 aria-label="Send message"
                 style={{
                   backgroundColor: 'var(--accent-primary)',
@@ -298,7 +423,7 @@ export function AiSidebar({ isOpen, onClose, projectId }: AiSidebarProps) {
                 }}
                 className="absolute bottom-2 right-2 h-8 w-8 disabled:opacity-40"
               >
-                {isSending ? (
+                {isBusy ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Send className="h-4 w-4" />
@@ -308,74 +433,20 @@ export function AiSidebar({ isOpen, onClose, projectId }: AiSidebarProps) {
           </div>
         </TabsContent>
 
-        {/* Specs tab */}
+        {/* Specs tab — lists persisted specs, opens a Markdown preview modal,
+            and offers per-spec download (see SpecsPanel). */}
         <TabsContent
           value="specs"
-          className="flex flex-col min-h-0 data-[state=inactive]:hidden"
+          className="flex flex-col min-h-0 min-w-0 data-[state=inactive]:hidden"
         >
-          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-4">
-            <Button
-              type="button"
-              style={{
-                backgroundColor: 'var(--accent-primary)',
-                color: '#ffffff',
-              }}
-              className="w-full gap-2"
-            >
-              <Sparkles className="h-4 w-4" />
-              Generate Spec
-            </Button>
-
-            {/* Demo spec card */}
-            <div
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                borderColor: 'var(--border-subtle)',
-              }}
-              className="rounded-2xl border p-4 flex flex-col gap-3"
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  style={{
-                    backgroundColor: 'var(--accent-primary-dim)',
-                    color: 'var(--accent-primary)',
-                  }}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl shrink-0"
-                >
-                  <FileText className="h-4 w-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3
-                    style={{ color: 'var(--text-primary)' }}
-                    className="text-sm font-medium leading-tight"
-                  >
-                    System Architecture Spec
-                  </h3>
-                  <p
-                    style={{ color: 'var(--text-muted)' }}
-                    className="mt-1 text-xs leading-relaxed line-clamp-2"
-                  >
-                    A generated technical specification describing the services,
-                    data stores, and message flows on the canvas.
-                  </p>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled
-                style={{
-                  borderColor: 'var(--border-subtle)',
-                  color: 'var(--text-muted)',
-                }}
-                className="w-full gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Download
-              </Button>
-            </div>
-          </div>
+          <SpecsPanel
+            projectId={projectId}
+            chatHistory={messages.map((m) => ({
+              sender: m.sender,
+              role: m.role,
+              content: m.content,
+            }))}
+          />
         </TabsContent>
       </Tabs>
     </aside>

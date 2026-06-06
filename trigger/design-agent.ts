@@ -6,8 +6,8 @@ import {
   AI_AGENT_COLOR,
   AI_AGENT_NAME,
   AI_AGENT_USER_ID,
-  type AiStatusEvent,
 } from "../liveblocks.config";
+import { AI_STATUS_FEED, type AiStatusPhase } from "../types/tasks";
 import {
   NODE_COLOR_THEMES,
   SHAPE_DEFAULT_SIZES,
@@ -256,9 +256,16 @@ export const designAgentTask = task({
     const liveblocks = getLiveblocks();
     const runId = ctx.run.id;
 
-    const broadcast = async (event: Omit<AiStatusEvent, "type" | "runId">) => {
+    // Publish a message to the shared `ai-status-feed` so every participant can
+    // follow the agent's progress in real time (canvas status pill + sidebar).
+    const broadcast = async (phase: AiStatusPhase, text: string) => {
       try {
-        await liveblocks.broadcastEvent(roomId, { type: "ai-status", runId, ...event });
+        await liveblocks.broadcastEvent(roomId, {
+          feed: AI_STATUS_FEED,
+          phase,
+          text,
+          runId,
+        });
       } catch (error) {
         // Status feed is best-effort; never let it fail the run.
         logger.warn("Failed to broadcast AI status", { error: String(error) });
@@ -298,7 +305,7 @@ export const designAgentTask = task({
     logger.info("Design agent started", { roomId, prompt });
 
     await setPresence({ x: LAYOUT.originX, y: LAYOUT.originY }, true);
-    await broadcast({ phase: "started", message: "Ghost AI is reading your prompt…" });
+    await broadcast("started", "Ghost AI is reading your prompt…");
 
     try {
       // Read the current canvas so the model can extend an existing design.
@@ -309,16 +316,13 @@ export const designAgentTask = task({
         currentEdges = flow.edges;
       });
 
-      await broadcast({ phase: "processing", message: "Designing your architecture…" });
+      await broadcast("processing", "Designing your architecture…");
 
       const plan = await interpretPrompt(prompt, currentNodes, currentEdges);
       logger.info("AI plan", { actionCount: plan.actions.length, summary: plan.summary });
 
       if (plan.actions.length === 0) {
-        await broadcast({
-          phase: "complete",
-          message: plan.summary ?? "No canvas changes were needed.",
-        });
+        await broadcast("complete", plan.summary ?? "No canvas changes were needed.");
         return { status: "complete" as const, applied: 0, summary: plan.summary };
       }
 
@@ -445,24 +449,18 @@ export const designAgentTask = task({
 
       // Move the AI cursor to where it finished working, then report progress.
       await setPresence(lastPosition, true);
-      await broadcast({
-        phase: "processing",
-        message: `Applied ${applied} ${applied === 1 ? "change" : "changes"} to the canvas.`,
-      });
+      await broadcast(
+        "processing",
+        `Applied ${applied} ${applied === 1 ? "change" : "changes"} to the canvas.`,
+      );
 
-      await broadcast({
-        phase: "complete",
-        message: plan.summary ?? "Ghost AI finished updating the canvas.",
-      });
+      await broadcast("complete", plan.summary ?? "Ghost AI finished updating the canvas.");
 
       logger.info("Design agent complete", { applied });
       return { status: "complete" as const, applied, summary: plan.summary };
     } catch (error) {
       logger.error("Design agent failed", { error: String(error) });
-      await broadcast({
-        phase: "error",
-        message: "Ghost AI couldn't finish that request. Please try again.",
-      });
+      await broadcast("error", "Ghost AI couldn't finish that request. Please try again.");
       throw error;
     } finally {
       // Always clear the AI presence so its cursor/thinking state disappears.

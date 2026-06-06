@@ -9,6 +9,7 @@ model Project {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   collaborators ProjectCollaborator[] @relation("ProjectCollaborators")
+  specs     ProjectSpec[] @relation("ProjectSpecs")
 
   @@index([ownerId])
   @@index([createdAt])
