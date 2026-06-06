@@ -10,6 +10,7 @@ model Project {
   updatedAt DateTime @updatedAt
   collaborators ProjectCollaborator[] @relation("ProjectCollaborators")
   specs     ProjectSpec[] @relation("ProjectSpecs")
+  taskRuns  TaskRun[] @relation("ProjectTaskRuns")
 
   @@index([ownerId])
   @@index([createdAt])

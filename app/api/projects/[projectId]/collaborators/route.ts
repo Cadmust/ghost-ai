@@ -94,8 +94,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pro
     );
   } catch (error) {
     console.error('[COLLABORATORS_GET]', error);
-    const detail = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: 'Internal Error', detail }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
   }
 }
 

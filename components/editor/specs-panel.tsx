@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import ReactMarkdown from 'react-markdown';
 import {
@@ -75,6 +75,12 @@ export function SpecsPanel({ projectId, chatHistory }: SpecsPanelProps) {
   const [isContentLoading, setIsContentLoading] = useState(false);
   const [contentError, setContentError] = useState(false);
 
+  // Guards against preview fetches racing: clicking another spec aborts the
+  // in-flight request and a monotonic id ensures only the latest call commits
+  // state, so a slow earlier fetch can't overwrite a newer preview.
+  const previewRequestId = useRef(0);
+  const previewController = useRef<AbortController | null>(null);
+
   const loadSpecs = useCallback(async () => {
     setIsLoading(true);
     setLoadError(false);
@@ -121,18 +127,31 @@ export function SpecsPanel({ projectId, chatHistory }: SpecsPanelProps) {
   // Open the preview modal and fetch the Markdown for the selected spec.
   const openPreview = useCallback(
     async (spec: SpecItem) => {
+      // Abort any prior in-flight preview and claim this call as the latest.
+      previewController.current?.abort();
+      const controller = new AbortController();
+      previewController.current = controller;
+      const requestId = ++previewRequestId.current;
+      const isStale = () => requestId !== previewRequestId.current;
+
       setActive(spec);
       setContent('');
       setContentError(false);
       setIsContentLoading(true);
       try {
-        const response = await fetch(downloadUrl(spec.id));
+        const response = await fetch(downloadUrl(spec.id), {
+          signal: controller.signal,
+        });
         if (!response.ok) throw new Error(`Content failed: ${response.status}`);
-        setContent(await response.text());
-      } catch {
-        setContentError(true);
+        const text = await response.text();
+        if (!isStale()) setContent(text);
+      } catch (error) {
+        // Intentional cancellations (a newer preview superseded this one) must
+        // not surface as an error.
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (!isStale()) setContentError(true);
       } finally {
-        setIsContentLoading(false);
+        if (!isStale()) setIsContentLoading(false);
       }
     },
     [downloadUrl],

@@ -1,4 +1,4 @@
-Persist generated specs with Vercel Blob and Prisma, then add a secure download route so users cann retrieve their generated spec files.
+Persist generated specs with Vercel Blob and Prisma, then add a secure download route so users can retrieve their generated spec files.
 
 ### Implementation
 

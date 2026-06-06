@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    const hasAccess = await canAccessProject(projectId, identity.userId, identity.email);
+    const hasAccess = await canAccessProject(projectId, identity.userId, identity.emails);
     if (!hasAccess) {
       return new NextResponse('Forbidden', { status: 403 });
     }
