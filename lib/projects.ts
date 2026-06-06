@@ -1,5 +1,5 @@
 import { auth, clerkClient } from '@clerk/nextjs/server';
-import prisma from '@/lib/prisma';
+import prisma, { withDbRetry } from '@/lib/prisma';
 import { normalizeEmail } from '@/lib/project-access';
 
 export interface ProjectWithCollaborators {
@@ -22,10 +22,12 @@ export async function getProjectsForUser() {
 
   try {
     // Get owned projects
-    const ownedProjects = await prisma.project.findMany({
-      where: { ownerId: userId },
-      orderBy: { createdAt: 'desc' },
-    });
+    const ownedProjects = await withDbRetry(() =>
+      prisma.project.findMany({
+        where: { ownerId: userId },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
 
     // Get user email from Clerk to find shared projects
     let sharedProjects: ProjectWithCollaborators[] = [];
@@ -35,11 +37,13 @@ export async function getProjectsForUser() {
       const email = normalizeEmail(user.emailAddresses[0]?.emailAddress);
 
       if (email) {
-        const collaborators = await prisma.projectCollaborator.findMany({
-          where: { email },
-          include: { project: true },
-          orderBy: { createdAt: 'desc' },
-        });
+        const collaborators = await withDbRetry(() =>
+          prisma.projectCollaborator.findMany({
+            where: { email },
+            include: { project: true },
+            orderBy: { createdAt: 'desc' },
+          }),
+        );
 
         sharedProjects = collaborators.map((c) => c.project);
       }
@@ -48,13 +52,15 @@ export async function getProjectsForUser() {
     }
 
     // Also include owned projects that have collaborators (shared-by-me)
-    const ownedWithCollaborators = await prisma.project.findMany({
-      where: {
-        ownerId: userId,
-        collaborators: { some: {} },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const ownedWithCollaborators = await withDbRetry(() =>
+      prisma.project.findMany({
+        where: {
+          ownerId: userId,
+          collaborators: { some: {} },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
 
     // Merge and deduplicate by id
     const seenIds = new Set(sharedProjects.map((p) => p.id));
