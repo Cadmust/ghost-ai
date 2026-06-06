@@ -1,6 +1,6 @@
 "use client";
 
-import { Network, Lock, FileText } from "lucide-react";
+import { Network, Lock, FileText, Ghost } from "lucide-react";
 
 export default function AuthSidebar() {
   return (
@@ -8,7 +8,12 @@ export default function AuthSidebar() {
       <div>
         {/* Logo */}
         <div className="flex items-center gap-3 mb-16">
-          <div className="w-8 h-8 bg-cyan-500 rounded" style={{ backgroundColor: "#00c8d4" }}></div>
+          <div
+            className="w-8 h-8 rounded flex items-center justify-center"
+            style={{ backgroundColor: "#00c8d4" }}
+          >
+            <Ghost className="w-5 h-5" style={{ color: "#080809" }} />
+          </div>
           <span className="text-lg font-semibold text-white tracking-tight">Ghost AI</span>
         </div>
 
