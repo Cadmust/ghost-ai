@@ -53,9 +53,21 @@ export async function POST(request: NextRequest) {
 
     const cursorColor = userIdToColor(userId);
 
-    // Ensure the Liveblocks room exists (idempotent)
+    // Ensure the Liveblocks room exists (idempotent). getOrCreateRoom only
+    // applies usersAccesses when the room is first created, so a collaborator
+    // joining an existing room (created by the owner) would otherwise have no
+    // room permission and be rejected with code 4001 ("no access to this room").
+    // We've already verified membership via canAccessProject above, so grant
+    // this user room:write explicitly on every auth — for both new and
+    // existing rooms.
     await liveblocks.getOrCreateRoom(projectId, {
       defaultAccesses: [],
+      usersAccesses: {
+        [userId]: ['room:write'],
+      },
+    });
+
+    await liveblocks.updateRoom(projectId, {
       usersAccesses: {
         [userId]: ['room:write'],
       },

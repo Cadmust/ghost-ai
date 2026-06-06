@@ -48,3 +48,5 @@ next-env.d.ts
 /context/current-issues-fixed.md
 
 /app/generated/prisma
+
+.trigger

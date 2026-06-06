@@ -6,6 +6,18 @@ export interface ProjectAccess {
   email: string | null;
 }
 
+/**
+ * Collaborator emails are stored lowercased (see the collaborators POST route),
+ * so every access lookup must normalize the same way. Clerk can return an
+ * address with different casing than the user typed when inviting, and a
+ * case-sensitive `findUnique` on `projectId_email` would otherwise miss —
+ * silently denying access and hiding the collaborator from lists.
+ */
+export function normalizeEmail(email: string | null | undefined): string | null {
+  const trimmed = email?.trim().toLowerCase();
+  return trimmed ? trimmed : null;
+}
+
 export async function getCurrentIdentity(): Promise<ProjectAccess | null> {
   const { userId } = await auth();
 
@@ -17,7 +29,7 @@ export async function getCurrentIdentity(): Promise<ProjectAccess | null> {
   try {
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
-    const email = user.emailAddresses[0]?.emailAddress ?? null;
+    const email = normalizeEmail(user.emailAddresses[0]?.emailAddress);
     return { userId, email };
   } catch {
     return { userId, email: null };
@@ -40,10 +52,11 @@ export async function canAccessProject(projectId: string, userId: string, userEm
     }
 
     // Collaborator check by email
-    if (userEmail) {
+    const normalizedEmail = normalizeEmail(userEmail);
+    if (normalizedEmail) {
       const collaborator = await prisma.projectCollaborator.findUnique({
         where: {
-          projectId_email: { projectId, email: userEmail },
+          projectId_email: { projectId, email: normalizedEmail },
         },
         select: { id: true },
       });

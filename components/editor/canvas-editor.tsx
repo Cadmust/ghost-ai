@@ -1,6 +1,6 @@
 'use client';
 
-import { Component, type ReactNode, useCallback, useState, useRef, type DragEvent, type MouseEvent } from 'react';
+import { Component, type ReactNode, useCallback, useEffect, useState, useRef, type DragEvent, type MouseEvent } from 'react';
 import {
   LiveblocksProvider,
   RoomProvider,
@@ -23,7 +23,10 @@ import { ShapeRenderer } from '@/components/editor/shape-renderer';
 import { CanvasControlBar } from '@/components/editor/canvas-control-bar';
 import { PresenceAvatars } from '@/components/editor/presence-avatars';
 import { LiveCursors } from '@/components/editor/live-cursors';
+import { AiStatusFeed } from '@/components/editor/ai-status-feed';
+import { AiSidebar } from '@/components/editor/ai-sidebar';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useCanvasAutosave, type SaveStatus } from '@/hooks/use-canvas-autosave';
 import { useUndo, useRedo, useUpdateMyPresence } from '@liveblocks/react';
 import { StarterTemplatesModal } from '@/components/editor/starter-templates-modal';
 import type { CanvasTemplate } from '@/components/editor/starter-templates';
@@ -34,6 +37,12 @@ interface CanvasEditorProps {
   roomId: string;
   showTemplates?: boolean;
   onTemplatesOpenChange?: (open: boolean) => void;
+  onSaveStatusChange?: (status: SaveStatus) => void;
+  onSaveAvailable?: (save: () => Promise<void>) => void;
+  /** AI sidebar open state — owned by the workspace, rendered inside the room
+   *  so it can subscribe to the shared `ai-status-feed`. */
+  isAiSidebarOpen?: boolean;
+  onAiSidebarClose?: () => void;
 }
 
 const defaultEdgeOptions: DefaultEdgeOptions = {
@@ -49,13 +58,23 @@ const edgeTypes = {
   canvasEdge: CanvasEdgeRenderer,
 };
 
-export function CanvasEditor({ roomId, showTemplates = false, onTemplatesOpenChange }: CanvasEditorProps) {
+export function CanvasEditor({ roomId, showTemplates = false, onTemplatesOpenChange, onSaveStatusChange, onSaveAvailable, isAiSidebarOpen = false, onAiSidebarClose }: CanvasEditorProps) {
   return (
     <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
       <RoomProvider id={roomId} initialPresence={{ cursor: null, thinking: false }}>
         <ErrorBoundary fallback={<CanvasErrorFallback />}>
           <ClientSideSuspense fallback={<CanvasLoadingFallback />}>
-            {() => <CanvasFlow showTemplates={showTemplates} onTemplatesOpenChange={onTemplatesOpenChange} />}
+            {() => (
+              <CanvasFlow
+                projectId={roomId}
+                showTemplates={showTemplates}
+                onTemplatesOpenChange={onTemplatesOpenChange}
+                onSaveStatusChange={onSaveStatusChange}
+                onSaveAvailable={onSaveAvailable}
+                isAiSidebarOpen={isAiSidebarOpen}
+                onAiSidebarClose={onAiSidebarClose}
+              />
+            )}
           </ClientSideSuspense>
         </ErrorBoundary>
       </RoomProvider>
@@ -63,18 +82,37 @@ export function CanvasEditor({ roomId, showTemplates = false, onTemplatesOpenCha
   );
 }
 
-function CanvasFlow({ showTemplates, onTemplatesOpenChange }: { showTemplates: boolean; onTemplatesOpenChange?: (open: boolean) => void }) {
+interface CanvasFlowProps {
+  projectId: string;
+  showTemplates: boolean;
+  onTemplatesOpenChange?: (open: boolean) => void;
+  onSaveStatusChange?: (status: SaveStatus) => void;
+  onSaveAvailable?: (save: () => Promise<void>) => void;
+  isAiSidebarOpen: boolean;
+  onAiSidebarClose?: () => void;
+}
+
+function CanvasFlow({ projectId, showTemplates, onTemplatesOpenChange, onSaveStatusChange, onSaveAvailable, isAiSidebarOpen, onAiSidebarClose }: CanvasFlowProps) {
   return (
     <ReactFlowProvider>
-      <CanvasFlowInner showTemplates={showTemplates} onTemplatesOpenChange={onTemplatesOpenChange} />
+      <CanvasFlowInner
+        projectId={projectId}
+        showTemplates={showTemplates}
+        onTemplatesOpenChange={onTemplatesOpenChange}
+        onSaveStatusChange={onSaveStatusChange}
+        onSaveAvailable={onSaveAvailable}
+        isAiSidebarOpen={isAiSidebarOpen}
+        onAiSidebarClose={onAiSidebarClose}
+      />
     </ReactFlowProvider>
   );
 }
 
-function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplates: boolean; onTemplatesOpenChange?: (open: boolean) => void }) {
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect } =
+function CanvasFlowInner({ projectId, showTemplates, onTemplatesOpenChange, onSaveStatusChange, onSaveAvailable, isAiSidebarOpen, onAiSidebarClose }: CanvasFlowProps) {
+  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, onDelete } =
     useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true });
   const reactFlowInstance = useReactFlow();
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   const undo = useUndo();
   const redo = useRedo();
@@ -82,6 +120,141 @@ function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplat
   const updateMyPresence = useUpdateMyPresence();
 
   useKeyboardShortcuts({ reactFlowInstance, undo, redo });
+
+  // Latest nodes/edges read from a ref so the keydown handler can stay attached
+  // once without re-binding on every collaborative change.
+  const selectionRef = useRef({ nodes, edges });
+  useEffect(() => {
+    selectionRef.current = { nodes, edges };
+  }, [nodes, edges]);
+
+  // Delete selected nodes and edges on Delete / Backspace. Deletion goes through
+  // Liveblocks' onDelete mutation, which removes them from shared Storage so the
+  // change syncs to every connected client in real time. (onNodesChange /
+  // onEdgesChange ignore `remove` changes — the @liveblocks/react-flow remove
+  // case is a no-op — so onDelete is the only collaborative delete path.) React
+  // Flow's built-in deleteKeyCode is intentionally left unset. The listener is
+  // on the canvas wrapper, but keyboard focus does not reliably land inside the
+  // React Flow pane, so it is registered on window and scoped by guarding the
+  // edit-target check below.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+
+      // Only act when the interaction is happening on this canvas: ignore key
+      // presses that originate outside the canvas wrapper (sidebars, dialogs).
+      const target = event.target as HTMLElement | null;
+      const wrapper = wrapperRef.current;
+      if (!wrapper) return;
+      if (target && target !== document.body && !wrapper.contains(target)) {
+        return;
+      }
+
+      // Never hijack deletion while the user is editing text.
+      if (target) {
+        const tag = target.tagName;
+        if (
+          tag === 'INPUT' ||
+          tag === 'TEXTAREA' ||
+          target.isContentEditable
+        ) {
+          return;
+        }
+      }
+
+      const selectedNodes = selectionRef.current.nodes.filter((n) => n.selected);
+      const selectedEdges = selectionRef.current.edges.filter((e) => e.selected);
+
+      if (selectedNodes.length === 0 && selectedEdges.length === 0) return;
+
+      event.preventDefault();
+
+      onDelete({ nodes: selectedNodes, edges: selectedEdges });
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onDelete]);
+
+  // Load saved canvas state once, only into an empty room. If the room already
+  // has nodes or edges, skip the load entirely so active collaboration is never
+  // overwritten. Autosave stays disabled until this check resolves so the
+  // initial empty state can't clobber the persisted blob.
+  const hasLoadedRef = useRef(false);
+  const [loadResolved, setLoadResolved] = useState(false);
+  // Set when the canvas had content at load time, so we frame it once. Never
+  // set for later additions (drop / import), so fitView can't fire on a drop.
+  const [shouldFitOnLoad, setShouldFitOnLoad] = useState(false);
+
+  useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
+    if (nodes.length > 0 || edges.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time load resolution
+      setShouldFitOnLoad(true);
+      setLoadResolved(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/canvas`);
+        if (!cancelled && response.ok) {
+          const saved: { nodes?: CanvasNode[]; edges?: CanvasEdge[] } = await response.json();
+          const savedNodes = saved.nodes ?? [];
+          const savedEdges = saved.edges ?? [];
+
+          if (savedNodes.length > 0 || savedEdges.length > 0) {
+            onNodesChange(savedNodes.map((item) => ({ type: 'add', item })));
+            onEdgesChange(savedEdges.map((item) => ({ type: 'add', item })));
+            if (!cancelled) setShouldFitOnLoad(true);
+          }
+        }
+      } catch {
+        // Loading failed; leave the room empty and let the user start fresh.
+      } finally {
+        if (!cancelled) setLoadResolved(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Run once on mount; node/edge presence is captured at first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  // Frame the diagram once, only when the canvas already had content at load
+  // time. fitView is intentionally NOT passed as a ReactFlow prop and is keyed
+  // off shouldFitOnLoad (never off the live node count), so dropping the first
+  // node onto an empty canvas does not trigger an automatic zoom-in — the
+  // viewport stays exactly where the user left it.
+  const hasFitRef = useRef(false);
+  useEffect(() => {
+    if (hasFitRef.current || !loadResolved || !shouldFitOnLoad) return;
+    hasFitRef.current = true;
+    reactFlowInstance.fitView({ duration: 200 });
+  }, [loadResolved, shouldFitOnLoad, reactFlowInstance]);
+
+  const { status: saveStatus, save } = useCanvasAutosave({
+    projectId,
+    nodes,
+    edges,
+    enabled: loadResolved,
+  });
+
+  useEffect(() => {
+    onSaveStatusChange?.(saveStatus);
+  }, [saveStatus, onSaveStatusChange]);
+
+  // Expose the manual save function so the workspace Save button can trigger
+  // an immediate save through the same path as autosave.
+  useEffect(() => {
+    onSaveAvailable?.(save);
+  }, [save, onSaveAvailable]);
 
   // Broadcast the cursor in flow (canvas) coordinates so it stays anchored to
   // the same point on the diagram regardless of each viewer's pan and zoom.
@@ -193,10 +366,20 @@ function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplat
       if (!raw) return;
 
       const payload: ShapeDragPayload = JSON.parse(raw);
-      const position = reactFlowInstance.screenToFlowPosition({
+
+      // screenToFlowPosition already accounts for the canvas container's
+      // bounding rect plus the current React Flow pan offset and zoom scale.
+      // The cursor marks where the node's center should land (the drag ghost is
+      // centered on the cursor), so shift the position back by half the node's
+      // width/height to get its top-left, which is what React Flow expects.
+      const cursor = reactFlowInstance.screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
       });
+      const position = {
+        x: cursor.x - payload.width / 2,
+        y: cursor.y - payload.height / 2,
+      };
 
       const id = `${payload.shape}-${crypto.randomUUID()}`;
 
@@ -231,14 +414,13 @@ function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplat
   }, []);
 
   return (
-    <div className="w-full h-full relative">
+    <div ref={wrapperRef} tabIndex={-1} className="w-full h-full relative outline-none">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        fitView
         defaultEdgeOptions={defaultEdgeOptions}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
@@ -301,6 +483,14 @@ function CanvasFlowInner({ showTemplates, onTemplatesOpenChange }: { showTemplat
       <LiveCursors />
 
       <PresenceAvatars />
+
+      <AiStatusFeed />
+
+      <AiSidebar
+        projectId={projectId}
+        isOpen={isAiSidebarOpen}
+        onClose={onAiSidebarClose ?? (() => {})}
+      />
 
       <CanvasControlBar />
 

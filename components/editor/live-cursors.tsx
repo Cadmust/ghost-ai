@@ -3,6 +3,7 @@
 import { memo } from 'react';
 import { useOther, useOthersConnectionIds } from '@liveblocks/react/suspense';
 import { useReactFlow } from '@xyflow/react';
+import { Loader2 } from 'lucide-react';
 
 /**
  * Renders live cursors for every other participant in the room.
@@ -29,6 +30,7 @@ function Cursor({ connectionId }: { connectionId: number }) {
   const cursor = useOther(connectionId, (other) => other.presence.cursor);
   const name = useOther(connectionId, (other) => other.info.name);
   const color = useOther(connectionId, (other) => other.info.color);
+  const thinking = useOther(connectionId, (other) => other.presence.thinking);
   const { flowToScreenPosition } = useReactFlow();
 
   if (!cursor) return null;
@@ -60,14 +62,16 @@ function Cursor({ connectionId }: { connectionId: number }) {
         />
       </svg>
 
-      {/* Name badge */}
+      {/* Name badge — shows a spinner while this participant is thinking
+          (e.g. the AI agent generating, or a collaborator mid-action). */}
       <div
-        className="absolute left-4 top-4 whitespace-nowrap rounded-xl px-2 py-0.5 text-xs font-medium shadow-sm"
+        className="absolute left-4 top-4 flex items-center gap-1 whitespace-nowrap rounded-xl px-2 py-0.5 text-xs font-medium shadow-sm"
         style={{
           backgroundColor: color,
           color: 'var(--bg-base)',
         }}
       >
+        {thinking && <Loader2 className="h-3 w-3 shrink-0 animate-spin" />}
         {name}
       </div>
     </div>

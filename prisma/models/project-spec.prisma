@@ -1,0 +1,12 @@
+// ProjectSpec model — metadata for a generated Markdown specification.
+// The spec's Markdown content lives in Vercel Blob; `filePath` holds the blob
+// URL reference (same metadata + blob pattern as Project.canvasJsonPath).
+model ProjectSpec {
+  id        String   @id @default(uuid())
+  project   Project  @relation("ProjectSpecs", fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  filePath  String // Vercel Blob URL pointing at the Markdown content
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}

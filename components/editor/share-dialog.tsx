@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -43,36 +43,45 @@ export function ShareDialog({ open, onOpenChange, projectId, isOwner }: ShareDia
   const [removing, setRemoving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCollaborators = useCallback(async () => {
+  const fetchCollaborators = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/projects/${projectId}/collaborators`);
+      const res = await fetch(`/api/projects/${projectId}/collaborators`, { cache: 'no-store', signal });
       if (!res.ok) {
-        throw new Error('Failed to load collaborators');
+        const data = await res.json().catch(() => null);
+        const detail = data?.detail ? `: ${data.detail}` : '';
+        throw new Error(`Failed to load collaborators (${res.status})${detail}`);
       }
       const data = await res.json();
-      setCollaborators(data.collaborators);
+      if (signal?.aborted) return;
+      setCollaborators(Array.isArray(data.collaborators) ? data.collaborators : []);
     } catch (e) {
-      setError('Failed to load collaborators');
+      if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) return;
+      setError(e instanceof Error ? e.message : 'Failed to load collaborators');
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [projectId]);
 
-  const handleDialogOpen = useCallback(() => {
-    fetchCollaborators();
+  // Load (and reload) the list whenever the dialog opens. This is driven by the
+  // controlled `open` PROP, not Radix's onOpenChange — onOpenChange only fires
+  // for Radix-internal triggers, so opening the dialog from the parent's Share
+  // button (which flips the `open` prop directly) would otherwise never refetch,
+  // leaving a stale/empty list after navigating away and back. The AbortSignal
+  // guards against a remount/reopen race overwriting fresh data with stale data.
+  useEffect(() => {
+    if (!open) return;
     setInviteEmail('');
     setCopied(false);
-    setError(null);
-  }, [fetchCollaborators]);
+    const controller = new AbortController();
+    fetchCollaborators(controller.signal);
+    return () => controller.abort();
+  }, [open, fetchCollaborators]);
 
   const handleOpenChange = useCallback((nextOpen: boolean) => {
-    if (nextOpen) {
-      handleDialogOpen();
-    }
     onOpenChange(nextOpen);
-  }, [onOpenChange, handleDialogOpen]);
+  }, [onOpenChange]);
 
   const handleInvite = async () => {
     if (!inviteEmail.trim() || !inviteEmail.includes('@')) return;

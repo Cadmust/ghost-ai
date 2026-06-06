@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth, clerkClient } from '@clerk/nextjs/server';
+import { normalizeEmail, getProjectAccess } from '@/lib/project-access';
+
+// Never cache this route — the collaborator list changes on invite/remove and
+// must reflect the DB on every request (including after client-side navigation
+// back to a project). Without this, a cached 200 can show a stale/empty list.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 // GET /api/projects/[projectId]/collaborators
 // Returns the list of collaborators enriched with Clerk user data (name, avatar)
@@ -14,36 +21,19 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pro
   }
 
   try {
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { ownerId: true },
-    });
+    // Owner-or-collaborator access check, normalized + Clerk-failure tolerant.
+    // Owner is resolved by userId (no Clerk call), so an owner's list never
+    // disappears just because a Clerk lookup hiccups on a cold dev-server start.
+    const access = await getProjectAccess(projectId);
 
-    if (!project) {
+    if (access.reason === 'not_found') {
       return new NextResponse('Project not found', { status: 404 });
     }
-
-    // Check access: owner or collaborator
-    const isOwner = project.ownerId === userId;
-    let isCollaborator = false;
-
-    if (!isOwner) {
-      const client = await clerkClient();
-      const currentUser = await client.users.getUser(userId);
-      const email = currentUser.emailAddresses[0]?.emailAddress;
-
-      if (email) {
-        const collab = await prisma.projectCollaborator.findUnique({
-          where: { projectId_email: { projectId, email } },
-          select: { id: true },
-        });
-        isCollaborator = !!collab;
-      }
-    }
-
-    if (!isOwner && !isCollaborator) {
+    if (!access.allowed || !access.project) {
       return new NextResponse('Forbidden', { status: 403 });
     }
+
+    const isOwner = access.project.ownerId === userId;
 
     // Fetch raw collaborators from DB
     const collaborators = await prisma.projectCollaborator.findMany({
@@ -63,14 +53,20 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pro
         });
 
         for (const clerkUser of users.data) {
-          const userEmail = clerkUser.emailAddresses[0]?.emailAddress;
-          if (userEmail) {
-            clerkUserMap.set(userEmail, {
-              name: clerkUser.firstName && clerkUser.lastName
-                ? `${clerkUser.firstName} ${clerkUser.lastName}`
-                : clerkUser.firstName || clerkUser.username || null,
-              avatarUrl: clerkUser.imageUrl,
-            });
+          const data = {
+            name: clerkUser.firstName && clerkUser.lastName
+              ? `${clerkUser.firstName} ${clerkUser.lastName}`
+              : clerkUser.firstName || clerkUser.username || null,
+            avatarUrl: clerkUser.imageUrl,
+          };
+          // Key by every normalized address on the user. The collaborator was
+          // stored lowercased and may match a non-primary Clerk address, so
+          // keying only by emailAddresses[0] (raw casing) would drop the match.
+          for (const addr of clerkUser.emailAddresses) {
+            const key = normalizeEmail(addr.emailAddress);
+            if (key) {
+              clerkUserMap.set(key, data);
+            }
           }
         }
       }
@@ -89,13 +85,17 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pro
       };
     });
 
-    return NextResponse.json({
-      collaborators: enriched,
-      isOwner,
-    });
+    return NextResponse.json(
+      {
+        collaborators: enriched,
+        isOwner,
+      },
+      { headers: { 'Cache-Control': 'no-store, max-age=0' } },
+    );
   } catch (error) {
     console.error('[COLLABORATORS_GET]', error);
-    return new NextResponse('Internal Error', { status: 500 });
+    const detail = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: 'Internal Error', detail }, { status: 500 });
   }
 }
 
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pr
     }
 
     const body = await request.json().catch(() => null);
-    const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const email = normalizeEmail(typeof body?.email === 'string' ? body.email : '') ?? '';
 
     if (!email || !email.includes('@')) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
@@ -143,9 +143,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pr
     // Check if the owner is trying to add themselves
     const client = await clerkClient();
     const currentUser = await client.users.getUser(userId);
-    const ownerEmail = currentUser.emailAddresses[0]?.emailAddress;
+    const ownerEmail = normalizeEmail(currentUser.emailAddresses[0]?.emailAddress);
 
-    if (ownerEmail && ownerEmail.toLowerCase() === email) {
+    if (ownerEmail && ownerEmail === email) {
       return NextResponse.json({ error: 'You are the project owner' }, { status: 400 });
     }
 
@@ -186,7 +186,7 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
     }
 
     const { searchParams } = new URL(request.url);
-    const email = searchParams.get('email')?.trim().toLowerCase() ?? '';
+    const email = normalizeEmail(searchParams.get('email')) ?? '';
 
     if (!email) {
       return NextResponse.json({ error: 'Email query parameter is required' }, { status: 400 });
