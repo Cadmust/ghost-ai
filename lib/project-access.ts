@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma';
 
 export interface ProjectAccess {
   userId: string;
-  email: string | null;
+  emails: string[];
 }
 
 /**
@@ -25,18 +25,22 @@ export async function getCurrentIdentity(): Promise<ProjectAccess | null> {
     return null;
   }
 
-  // Fetch user email from Clerk
+  // Fetch user emails from Clerk. A user can have several addresses (e.g. a
+  // personal primary plus a verified work address); a collaborator may have
+  // been invited via any of them, so we normalize and check them all.
   try {
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
-    const email = normalizeEmail(user.emailAddresses[0]?.emailAddress);
-    return { userId, email };
+    const emails = user.emailAddresses
+      .map((entry) => normalizeEmail(entry.emailAddress))
+      .filter((email): email is string => email !== null);
+    return { userId, emails };
   } catch {
-    return { userId, email: null };
+    return { userId, emails: [] };
   }
 }
 
-export async function canAccessProject(projectId: string, userId: string, userEmail: string | null): Promise<boolean> {
+export async function canAccessProject(projectId: string, userId: string, userEmails: string[]): Promise<boolean> {
   try {
     const project = await prisma.project.findUnique({
       where: { id: projectId },
@@ -51,13 +55,14 @@ export async function canAccessProject(projectId: string, userId: string, userEm
       return true;
     }
 
-    // Collaborator check by email
-    const normalizedEmail = normalizeEmail(userEmail);
-    if (normalizedEmail) {
-      const collaborator = await prisma.projectCollaborator.findUnique({
-        where: {
-          projectId_email: { projectId, email: normalizedEmail },
-        },
+    // Collaborator check across all of the user's verified emails
+    const normalizedEmails = userEmails
+      .map((email) => normalizeEmail(email))
+      .filter((email): email is string => email !== null);
+
+    if (normalizedEmails.length > 0) {
+      const collaborator = await prisma.projectCollaborator.findFirst({
+        where: { projectId, email: { in: normalizedEmails } },
         select: { id: true },
       });
 
@@ -89,7 +94,7 @@ export async function getProjectAccess(projectId: string) {
       return { allowed: false, reason: 'not_found' as const, project: null };
     }
 
-    const hasAccess = await canAccessProject(projectId, identity.userId, identity.email);
+    const hasAccess = await canAccessProject(projectId, identity.userId, identity.emails);
 
     if (!hasAccess) {
       return { allowed: false, reason: 'unauthorized' as const, project: null };

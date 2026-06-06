@@ -16,6 +16,8 @@ interface SpecRequest {
   chatHistory: ChatMessage[];
   nodes: unknown[];
   edges: unknown[];
+  /** Optional client-generated id used to dedupe accidental double submits. */
+  requestId?: string;
 }
 
 function parseChatHistory(value: unknown): ChatMessage[] {
@@ -38,7 +40,7 @@ function parseSpecRequest(value: unknown): SpecRequest | null {
     return null;
   }
 
-  const { roomId, chatHistory, nodes, edges } = value as Record<string, unknown>;
+  const { roomId, chatHistory, nodes, edges, requestId } = value as Record<string, unknown>;
 
   if (typeof roomId !== 'string' || roomId.length === 0) {
     return null;
@@ -49,6 +51,8 @@ function parseSpecRequest(value: unknown): SpecRequest | null {
     chatHistory: parseChatHistory(chatHistory),
     nodes: Array.isArray(nodes) ? nodes : [],
     edges: Array.isArray(edges) ? edges : [],
+    requestId:
+      typeof requestId === 'string' && requestId.length > 0 ? requestId : undefined,
   };
 }
 
@@ -72,26 +76,37 @@ export async function POST(request: NextRequest) {
   // The room id is the project id; resolve and verify access from it rather
   // than trusting any client-supplied project id.
   const projectId = parsed.roomId;
-  const hasAccess = await canAccessProject(projectId, identity.userId, identity.email);
+  const hasAccess = await canAccessProject(projectId, identity.userId, identity.emails);
   if (!hasAccess) {
     return new NextResponse('Forbidden', { status: 403 });
   }
 
   try {
-    const handle = await tasks.trigger<typeof generateSpecTask>('generate-spec', {
-      projectId,
-      roomId: parsed.roomId,
-      chatHistory: parsed.chatHistory,
-      nodes: parsed.nodes,
-      edges: parsed.edges,
-    });
+    const handle = await tasks.trigger<typeof generateSpecTask>(
+      'generate-spec',
+      {
+        projectId,
+        roomId: parsed.roomId,
+        chatHistory: parsed.chatHistory,
+        nodes: parsed.nodes,
+        edges: parsed.edges,
+      },
+      // A client-supplied requestId makes the trigger idempotent: a retried
+      // submit returns the same run handle instead of enqueuing a duplicate.
+      parsed.requestId ? { idempotencyKey: parsed.requestId } : undefined,
+    );
 
-    await prisma.taskRun.create({
-      data: {
+    // Upsert (not create) so an idempotent retry — which yields the same
+    // handle.id — converges on the existing row instead of failing the unique
+    // constraint on runId and 500'ing the retry.
+    await prisma.taskRun.upsert({
+      where: { runId: handle.id },
+      create: {
         runId: handle.id,
         projectId,
         userId: identity.userId,
       },
+      update: {},
     });
 
     // Mint a public token scoped to read just this run so the client can

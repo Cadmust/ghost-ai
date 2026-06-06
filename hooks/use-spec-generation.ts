@@ -98,6 +98,8 @@ export function useSpecGeneration(onComplete: () => void): SpecGenerationState {
             chatHistory: input.chatHistory,
             nodes: input.nodes,
             edges: input.edges,
+            // Dedupe accidental double submits via the trigger idempotencyKey.
+            requestId: crypto.randomUUID(),
           }),
         });
         if (!response.ok) throw new Error(`Spec request failed: ${response.status}`);

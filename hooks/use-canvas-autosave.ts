@@ -49,18 +49,13 @@ export function useCanvasAutosave({
   // Skip the very first run so loading existing state isn't echoed back as a save.
   const isFirstRun = useRef(true);
 
-  // Keep the latest nodes/edges in a ref so a manual save always persists the
-  // current canvas without needing to be re-created on every change.
-  const latestRef = useRef({ nodes, edges });
-  latestRef.current = { nodes, edges };
-
-  const persist = useCallback(async () => {
+  const persist = useCallback(async (payload: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => {
     setStatus('saving');
     try {
       const response = await fetch(`/api/projects/${projectId}/canvas`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(latestRef.current),
+        body: JSON.stringify(payload),
       });
 
       setStatus(response.ok ? 'saved' : 'error');
@@ -75,8 +70,8 @@ export function useCanvasAutosave({
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
-    await persist();
-  }, [persist]);
+    await persist({ nodes, edges });
+  }, [persist, nodes, edges]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -91,7 +86,7 @@ export function useCanvasAutosave({
     }
 
     timeoutRef.current = setTimeout(() => {
-      void persist();
+      void persist({ nodes, edges });
     }, debounceMs);
 
     return () => {

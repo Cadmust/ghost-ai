@@ -255,6 +255,11 @@ export const designAgentTask = task({
     const { roomId, prompt } = payload;
     const liveblocks = getLiveblocks();
     const runId = ctx.run.id;
+    // Run-scoped presence id so overlapping design-agent runs each own a distinct
+    // ephemeral presence entry. With a shared AI_AGENT_USER_ID, concurrent runs
+    // clobber each other's cursor/thinking state and one run's clearPresence
+    // would wipe another's active presence.
+    const presenceUserId = `${AI_AGENT_USER_ID}-${runId}`;
 
     // Publish a message to the shared `ai-status-feed` so every participant can
     // follow the agent's progress in real time (canvas status pill + sidebar).
@@ -277,7 +282,7 @@ export const designAgentTask = task({
     const setPresence = async (cursor: { x: number; y: number } | null, thinking: boolean) => {
       try {
         await liveblocks.setPresence(roomId, {
-          userId: AI_AGENT_USER_ID,
+          userId: presenceUserId,
           data: { cursor, thinking },
           userInfo: { name: AI_AGENT_NAME, avatar: "", color: AI_AGENT_COLOR },
           ttl: 120,
@@ -292,7 +297,7 @@ export const designAgentTask = task({
       // own, but clearing it immediately removes the AI cursor for everyone.
       try {
         await liveblocks.setPresence(roomId, {
-          userId: AI_AGENT_USER_ID,
+          userId: presenceUserId,
           data: { cursor: null, thinking: false },
           userInfo: { name: AI_AGENT_NAME, avatar: "", color: AI_AGENT_COLOR },
           ttl: 2,
@@ -302,7 +307,10 @@ export const designAgentTask = task({
       }
     };
 
-    logger.info("Design agent started", { roomId, prompt });
+    logger.info("Design agent started", {
+      roomId,
+      promptLength: prompt.length,
+    });
 
     await setPresence({ x: LAYOUT.originX, y: LAYOUT.originY }, true);
     await broadcast("started", "Ghost AI is reading your prompt…");
@@ -319,7 +327,10 @@ export const designAgentTask = task({
       await broadcast("processing", "Designing your architecture…");
 
       const plan = await interpretPrompt(prompt, currentNodes, currentEdges);
-      logger.info("AI plan", { actionCount: plan.actions.length, summary: plan.summary });
+      logger.info("AI plan", {
+        actionCount: plan.actions.length,
+        hasSummary: Boolean(plan.summary),
+      });
 
       if (plan.actions.length === 0) {
         await broadcast("complete", plan.summary ?? "No canvas changes were needed.");
@@ -407,10 +418,11 @@ export const designAgentTask = task({
                 if (!flow.getNode(action.id)) break;
                 flow.removeNode(action.id);
                 // Drop dangling edges so the graph stays consistent.
-                for (const edge of flow.edges) {
-                  if (edge.source === action.id || edge.target === action.id) {
-                    flow.removeEdge(edge.id);
-                  }
+                const danglingEdgeIds = flow.edges
+                  .filter((edge) => edge.source === action.id || edge.target === action.id)
+                  .map((edge) => edge.id);
+                for (const edgeId of danglingEdgeIds) {
+                  flow.removeEdge(edgeId);
                 }
                 applied += 1;
                 break;

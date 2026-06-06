@@ -72,8 +72,6 @@ export function ShareDialog({ open, onOpenChange, projectId, isOwner }: ShareDia
   // guards against a remount/reopen race overwriting fresh data with stale data.
   useEffect(() => {
     if (!open) return;
-    setInviteEmail('');
-    setCopied(false);
     const controller = new AbortController();
     fetchCollaborators(controller.signal);
     return () => controller.abort();
@@ -153,7 +151,13 @@ export function ShareDialog({ open, onOpenChange, projectId, isOwner }: ShareDia
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        onOpenAutoFocus={() => {
+          setInviteEmail('');
+          setCopied(false);
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Share project</DialogTitle>
           <DialogDescription>

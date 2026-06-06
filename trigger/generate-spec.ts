@@ -274,11 +274,10 @@ export const generateSpecTask = task({
       const spec = await generateMarkdown(payload);
 
       // Persist the Markdown to Vercel Blob + a ProjectSpec record so it can be
-      // downloaded later via the secure download route. Generation already
-      // succeeded and the content is returned regardless, so a persistence
-      // failure is logged but does not fail the run (the realtime client still
-      // receives `spec`).
-      let specId: string | undefined;
+      // downloaded later via the secure download route. If persistence fails the
+      // run must fail: a "complete" status with no persisted spec would leave the
+      // UI showing a finished run whose spec can never be downloaded.
+      let specId: string;
       try {
         specId = await persistSpec(projectId, runId, spec);
         logger.info("Spec persisted", { specId, projectId });
@@ -287,6 +286,8 @@ export const generateSpecTask = task({
           error: String(persistError),
           projectId,
         });
+        await broadcast("error", "Ghost AI generated the spec but couldn't save it. Please try again.");
+        throw persistError;
       }
 
       await broadcast("complete", "Spec generated.");

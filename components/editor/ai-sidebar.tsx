@@ -53,6 +53,7 @@ export function AiSidebar({ projectId, isOpen, onClose }: AiSidebarProps) {
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
   const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -137,32 +138,29 @@ export function AiSidebar({ projectId, isOpen, onClose }: AiSidebarProps) {
 
   const submitMessage = useCallback(async () => {
     const trimmed = input.trim();
-    if (!trimmed || isBusy) return;
+    if (!trimmed || isBusy || submitLockRef.current) return;
+    submitLockRef.current = true;
+    setIsSubmitting(true);
 
-    // Post the user's prompt to the shared chat immediately.
     try {
       sendMessage(trimmed);
-    } catch {
-      setSendError(true);
-      return;
-    }
-
-    // Clear the composer once the prompt is in the feed.
     setInput('');
-    setSendError(false);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = `${TEXTAREA_MIN_HEIGHT}px`;
-    }
+      setSendError(false);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = `${TEXTAREA_MIN_HEIGHT}px`;
+      }
 
-    // Trigger the design agent and start tracking the run.
-    setIsSubmitting(true);
-    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
       const response = await fetch('/api/ai/design', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // roomId == projectId — the canvas room is keyed by project id.
-        body: JSON.stringify({ prompt: trimmed, roomId: projectId, projectId }),
+        signal: controller.signal,
+        // The server derives the room from projectId; requestId dedupes
+        // accidental double submits via the trigger idempotencyKey.
+        body: JSON.stringify({ prompt: trimmed, projectId, requestId: crypto.randomUUID() }),
       });
+      clearTimeout(timeout);
       if (!response.ok) throw new Error(`Design request failed: ${response.status}`);
 
       const { runId, publicToken } = (await response.json()) as {
@@ -176,6 +174,7 @@ export function AiSidebar({ projectId, isOpen, onClose }: AiSidebarProps) {
       // Surface a small error and let the realtime/status feed clear itself.
       setSendError(true);
     } finally {
+      submitLockRef.current = false;
       setIsSubmitting(false);
     }
   }, [input, isBusy, sendMessage, projectId]);
@@ -204,9 +203,10 @@ export function AiSidebar({ projectId, isOpen, onClose }: AiSidebarProps) {
         borderLeftColor: 'var(--border-subtle)',
       }}
       className={`fixed right-0 top-14 bottom-0 w-80 z-40 border-l backdrop-blur shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
-        isOpen ? 'translate-x-0' : 'translate-x-full'
+        isOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
       }`}
       aria-hidden={!isOpen}
+      inert={!isOpen}
     >
       {/* Header */}
       <header

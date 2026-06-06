@@ -3,6 +3,7 @@
 model TaskRun {
   id        String   @id @default(uuid())
   runId     String   @unique // Trigger.dev run ID
+  project   Project  @relation("ProjectTaskRuns", fields: [projectId], references: [id], onDelete: Cascade)
   projectId String
   userId    String   // Maps to Clerk user ID
   createdAt DateTime @default(now())
